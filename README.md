@@ -35,23 +35,29 @@ lvjson.has_nonfinite({"a": [1.0, float("inf")]})  # -> True
 
 ## Why
 
-LabVIEW's **Flatten To JSON** node does not emit portable JSON. Two concrete problems:
+Python's own `json` is more capable than it is often given credit for, so this library does
+not duplicate it. By default `json.loads` already accepts `NaN`, `Infinity` and `-Infinity`,
+`json.dumps` already emits them (`allow_nan=True`), and since Python 3.1 `float.__repr__`
+already produces the shortest string that round-trips a double exactly. None of that is the
+gap `lvjson` closes.
 
-- **Adaptive double precision.** NI documents that the node changes how many digits a `DBL`
-  gets depending on the value, so the same number can serialise differently and a naive
-  round-trip loses or gains digits (NI: "Flatten To JSON changes the DBL digits"). `lvjson`
-  re-emits every finite double with the shortest representation that round-trips exactly, so
-  values survive the trip into LabVIEW and back unchanged.
-- **NaN / Inf extensions.** When "enable LabVIEW extensions" is on, the node writes bare
-  `NaN`, `Infinity` and `-Infinity` tokens, which strict parsers reject. Other JSON tooling
-  hits the same wall (see JSONtext issue #116). `lvjson.loads` accepts those tokens safely,
-  and `lvjson.dumps` lets you keep them (`extend`), convert them to `null`, or reject them,
-  so you decide what the far end receives.
+The gap is byte-level compatibility with LabVIEW's **Flatten To JSON** node, which does not
+emit portable JSON and does not format numbers the way `json` does:
 
-General-purpose JSON packages such as `json-flatten` and `flatten_json` solve a different
-problem (flattening nested objects into dotted keys); none address LabVIEW's number
-formatting or its NaN/Inf extensions. `lvjson` is a small, typed, zero-dependency layer over
-the standard library `json` module aimed squarely at the LabVIEW boundary.
+- **Number formatting.** NI documents that the node changes how many digits a `DBL` gets
+  depending on the value, so a value serialised by LabVIEW and re-serialised by `json` can
+  differ character for character even though both are correct doubles (NI: "Flatten To JSON
+  changes the DBL digits"). `lvjson` round-trips the LabVIEW form so the bytes match what
+  LabVIEW reads and writes.
+- **A strict boundary for non-finite floats.** LabVIEW's extension tokens (`NaN`,
+  `Infinity`, `-Infinity`) are legal input to `json` but are rejected by strict,
+  spec-conformant consumers elsewhere. `lvjson.loads` reads them, and `lvjson.dumps` lets you
+  keep them (`extend`), convert them to `null`, or reject them (`reject`), so you choose what
+  a strict far end receives instead of discovering the mismatch downstream.
+
+So `lvjson` is a small, typed, zero-dependency layer over the standard library `json` module,
+aimed squarely at matching LabVIEW's Flatten To JSON output and giving you an explicit strict
+mode at the boundary, not at adding number or NaN/Inf support that `json` already has.
 
 ## License
 
