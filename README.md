@@ -1,6 +1,10 @@
 # lvjson
 
-Byte-level compatibility with LabVIEW Flatten To JSON output, lossless numbers and a NaN/Inf policy.
+Read and write LabVIEW **Flatten To JSON** text from Python: the non-finite tokens LabVIEW
+really writes, its exact number formatting, and a strict portable mode for everything else.
+
+Every claim about LabVIEW's output below is pinned to genuine bytes captured from LabVIEW 2026
+and checked by the test suite. See [What rests on evidence](#what-rests-on-evidence).
 
 ## Install
 
@@ -8,87 +12,145 @@ Byte-level compatibility with LabVIEW Flatten To JSON output, lossless numbers a
 pip install lvjson
 ```
 
+Python 3.10 or newer, no dependencies.
+
 ## Usage
 
 ```python
+import math
+
 import lvjson
 
-# Read text that LabVIEW's "Flatten To JSON" produced, including its NaN / Inf / -Inf tokens.
-data = lvjson.loads('{"gain": 2.5, "reading": NaN, "limit": Inf, "floor": -Inf}')
-# -> {"gain": 2.5, "reading": nan, "limit": inf, "floor": -inf}
+# Text in the form LabVIEW 2026's Flatten To JSON writes (see tests/fixtures/labview2026).
+labview = '{"Data":[NaN,Infinity,-Infinity,0.10000000000000000555,-0]}'
 
-# Write JSON the LabVIEW JSON node ingests cleanly, keeping full double precision.
-lvjson.dumps({"gain": 2.5, "offset": 0.1 + 0.2})
-# -> '{"gain":2.5,"offset":0.30000000000000004}'
+data = lvjson.loads(labview)
+assert math.isnan(data["Data"][0]) and data["Data"][1:3] == [math.inf, -math.inf]
+assert data["Data"][3] == 0.1  # 20 digits in, the exact same double out
+assert math.copysign(1.0, data["Data"][4]) == -1.0  # "-0" keeps its sign (json gives int 0)
 
-# Non-finite floats come out in LabVIEW's spelling, not the json module's.
-lvjson.dumps([float("nan"), float("inf"), float("-inf")])
-# -> '[NaN,Inf,-Inf]'
+# The short Inf / -Inf spelling some producers use is read too, never inside strings.
+assert lvjson.loads('[Inf, -Inf, "Inf"]') == [math.inf, -math.inf, "Inf"]
 
-# Choose how non-finite floats cross the boundary.
-lvjson.dumps([float("nan")], nan_inf="extend")  # -> '[NaN]'  (LabVIEW tokens)
-lvjson.dumps([float("nan")], nan_inf="null")    # -> '[null]' (strict, portable JSON)
-lvjson.dumps([float("nan")], nan_inf="reject")  # -> raises lvjson.LVJSONError
+# Strict, portable JSON for consumers that reject NaN and Infinity (the default is null).
+assert lvjson.to_portable(labview) == '{"Data":[null,null,null,0.1,-0.0]}'
 
-# Convert whole documents between the two worlds.
-lvjson.to_portable('{"limit": Inf}')             # -> '{"limit":null}'   (strict by default)
-lvjson.to_portable('{"limit": Inf}', nan_inf="extend")  # -> '{"limit":Infinity}'
-lvjson.to_labview('{"limit": Infinity}')         # -> '{"limit":Inf}'
+# Back to LabVIEW. number_style="labview" re-creates Flatten To JSON's own digits,
+# so a value read from LabVIEW is written back byte for byte.
+assert lvjson.dumps(data, number_style="labview") == labview
+assert lvjson.dumps(data) == '{"Data":[NaN,Infinity,-Infinity,0.1,-0.0]}'
 
-# Canonicalise LabVIEW's adaptive digit formatting without changing any value.
-lvjson.round_trip('{"v": 3.1400000000000001}')   # -> '{"v":3.14}'
+# The infinities can be spelled Inf / -Inf for a consumer that expects that.
+assert lvjson.dumps([math.inf, -math.inf], infinity="Inf") == "[Inf,-Inf]"
 
-# Check before handing a structure to a strict consumer.
-lvjson.has_nonfinite({"a": [1.0, float("inf")]}) # -> True
+# Non-finite policy at the boundary: keep, turn into null, or refuse.
+assert lvjson.dumps([math.nan], nan_inf="null") == "[null]"
+try:
+    lvjson.dumps([math.nan], nan_inf="reject")
+except lvjson.LVJSONError:
+    pass
+
+# Canonicalise LabVIEW's 20-digit numbers without changing any value.
+assert lvjson.round_trip('{"v": 3.141592653589793116}') == '{"v":3.141592653589793}'
+
+# Inspect before handing data to a strict consumer.
+assert lvjson.count_nonfinite(labview) == {"NaN": 1, "Infinity": 1, "-Infinity": 1}
+assert lvjson.has_nonfinite({"a": [1.0, math.inf]})
 ```
+
+`loads`, `to_portable`, `to_labview` and `round_trip` accept `str` or UTF-8 `bytes` (the
+encoding LabVIEW writes). Every error is an `lvjson.LVJSONError`, a `ValueError` subclass.
+
+| Function | Purpose |
+| --- | --- |
+| `loads(text, nan_inf=)` | Parse; `nan_inf` is `"extend"` (floats), `"null"` (None) or `"reject"` |
+| `dumps(obj, nan_inf=, infinity=, number_style=, indent=, sort_keys=)` | Serialise for LabVIEW |
+| `to_portable(text, nan_inf="null", ...)` | LabVIEW text to strict RFC 8259 JSON |
+| `to_labview(text, nan_inf=, infinity=, number_style=, ...)` | JSON text to LabVIEW text |
+| `round_trip(text, ...)` | Re-emit LabVIEW text canonically, values unchanged |
+| `count_nonfinite(text)` | Count each non-finite spelling outside strings |
+| `has_nonfinite(obj)` | Whether a parsed value holds NaN or an infinity |
+
+`infinity` is `"Infinity"` (default, what LabVIEW 2026 writes) or `"Inf"`. `number_style` is
+`"shortest"` (default, the shortest exact text, e.g. `0.1`, `1.0`) or `"labview"` (C `%.20g`,
+e.g. `0.10000000000000000555`, `1`). Both styles preserve every double exactly.
 
 ## Command line
 
-The package installs an `lvjson` command for whole files or pipelines:
-
 ```
-# LabVIEW JSON to portable JSON, non-finite values become null (the default)
-echo '{"gain":2.5,"reading":NaN,"limit":Inf}' | lvjson to-portable
+# LabVIEW JSON to strict portable JSON: NaN / Infinity / -Infinity become null
+echo '{"gain":2.5,"reading":NaN,"limit":Infinity}' | lvjson to-portable
 # -> {"gain":2.5,"reading":null,"limit":null}
 
-# portable JSON back to the LabVIEW spelling (NaN / Inf / -Inf)
-echo '{"limit":Infinity}' | lvjson to-labview
-# -> {"limit":Inf}
+# back to LabVIEW, re-creating Flatten To JSON's exact number formatting
+echo '{"x":0.1,"limit":Infinity}' | lvjson to-labview --number-style labview
+# -> {"x":0.10000000000000000555,"limit":Infinity}
 
-# keep the infinities, pretty-print, or fail loudly
-lvjson to-portable data.lvjson --nan-inf extend --indent 2
-lvjson to-portable data.lvjson --nan-inf reject
+# the short spelling, written to a file (UTF-8, no trailing newline)
+lvjson to-labview data.json --infinity Inf -o out.json
+
+# list the non-finite values in a file (tokens, and numbers that overflow a double);
+# --strict exits 1 if there are any
+lvjson check data.json --strict
+# -> data.json: valid, non-finite values: NaN x1, Infinity x1, -Infinity x1
 ```
 
-Run `lvjson --help`, `lvjson to-portable --help` or `lvjson to-labview --help` for the full list.
+Input is read as UTF-8 bytes and output written as UTF-8, whatever the console code page.
+Exit status is 0 on success, 1 on an input, conversion or `--strict` failure, 2 on bad usage.
+Run `lvjson --help` or `lvjson <command> --help` for every option.
 
 ## Why
 
-Python's own `json` is more capable than it is often given credit for, so this library does
-not duplicate it. `json.loads` already accepts `NaN`, `Infinity` and `-Infinity`, `json.dumps`
-already emits them (`allow_nan=True`), and since Python 3.1 `float.__repr__` already produces
-the shortest string that round-trips a double exactly. None of that is the gap `lvjson` closes.
+Python's `json.loads` already parses what LabVIEW 2026 writes: `NaN`, `Infinity` and
+`-Infinity` are the same tokens the standard library uses. Earlier releases of this library
+said otherwise; that was wrong, and 0.3.0 corrects it. What `lvjson` adds is the boundary
+around that parse:
 
-The gap is byte-level compatibility with LabVIEW's **Flatten To JSON** node, which does not
-emit portable JSON and does not spell its numbers the way `json` does:
+- **A strict mode.** The non-finite tokens are not RFC 8259 JSON. Browsers, Go, Rust and many
+  other parsers reject them. `to_portable` and `nan_inf` decide explicitly what a strict
+  consumer receives (`null`, the tokens, or an error) instead of failing downstream.
+- **Negative zero.** LabVIEW writes a `-0.0` double as `-0`; `json.loads` returns the integer
+  `0`. `lvjson.loads` returns `-0.0`.
+- **LabVIEW's number formatting.** LabVIEW writes 20 significant digits
+  (`0.10000000000000000555`) and whole doubles without a decimal point. `number_style="labview"`
+  reproduces that exactly, so text can be regenerated byte for byte; `round_trip` goes the
+  other way and canonicalises to the shortest exact form.
+- **Other spellings.** `Inf` / `-Inf` from other producers (and from lvjson 0.2.0) are read and
+  can be written on request, always leaving string contents untouched.
 
-- **Non-finite tokens that `json` cannot read.** LabVIEW writes the bare tokens `NaN`, `Inf`
-  and `-Inf`. The standard library spells the infinities `Infinity` and `-Infinity`, so
-  `json.loads('{"x": Inf}')` raises, and `json.dumps(float("inf"))` produces `Infinity`, which
-  LabVIEW does not ingest. `lvjson` translates the tokens both ways, so the same value survives
-  a round trip through either side.
-- **A strict boundary for non-finite floats.** Those tokens are not valid JSON per RFC 8259 and
-  are rejected by strict consumers elsewhere. `lvjson` lets you keep them (`extend`), convert
-  them to `null` (`null`), or reject the value (`reject`), so you choose what a strict far end
-  receives instead of discovering the mismatch downstream.
-- **Number formatting.** NI documents that the node adapts how many digits a `DBL` gets to the
-  value, so a number written by LabVIEW can carry redundant trailing digits. `round_trip`
-  re-emits each double in its shortest exact form, so the text is canonical and the value is
-  unchanged.
+## What rests on evidence
 
-So `lvjson` is a small, typed, zero-dependency layer over the standard library `json` module,
-aimed squarely at matching LabVIEW's Flatten To JSON output and giving you an explicit strict
-mode at the boundary, not at adding number or NaN/Inf support that `json` already has.
+**Verified against real LabVIEW output.** Five files in `tests/fixtures/labview2026/` hold
+the output of LabVIEW 2026 (26.3.1f1) running the shipped example
+`examples\Strings\Unflatten From JSON.vi` unmodified, with chosen input values. Each is the
+string its Flatten To JSON node produced, rebuilt byte for byte from what LabVIEW returned
+(method, inputs and hashes in `manifest.json`; `scripts/capture-labview-json.ps1` reproduces
+it, and a second run gave the same bytes apart from the run-time timestamp). For DBL values,
+with the example's settings, they show:
+
+- non-finite doubles written as the bare tokens `NaN`, `Infinity`, `-Infinity`;
+- numbers consistent with C `%.20g` for every captured double, including where `%g` switches
+  between fixed and exponent form: `0.10000000000000000555`, `1.0000000000000000818e-05`,
+  `0.00010000000000000000479`, `10000000000000000000`, `1e+20`, `1.0000000000000000525e+300`,
+  whole values as `-1` or `65536`, negative zero as `-0`;
+- every captured double decoding to exactly the double that went in;
+- compact separators, UTF-8 text, `\t` `\n` `\r` `\u0001` escapes, `/` left unescaped;
+- token-like words inside strings written as ordinary string content.
+
+`dumps(..., number_style="labview")` reproduces all five captures byte for byte.
+
+**Supported by the runtime's strings only.** In `lvrt.dll` of the LabVIEW 2026 run-time, the
+JSON lexer's keyword table (offset `0x119cb20`) holds the suffixes `aN`, `nfinity`, `rue`,
+`alse`, `ull`, that is the keywords `NaN`, `Infinity`, `true`, `false`, `null`, and has no
+entry for `Inf`. That suggests LabVIEW's own reader accepts `Infinity` and not `Inf`, which is
+why `"Infinity"` is the default output spelling. It was not exercised.
+
+**Not verified.** Output with the node's *enable LabVIEW extensions* input set to false (the
+captured example does not wire it off); numeric types other than DBL (SGL and EXT were not
+captured, integers only as the example's small fields, and `number_style="labview"` targets
+DBL output); LabVIEW
+versions other than 2026; and whether any LabVIEW reader accepts `Inf`. The `Inf` spelling is
+supported for other producers, not because LabVIEW was seen to use it.
 
 ## License
 

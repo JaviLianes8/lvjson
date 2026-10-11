@@ -1,1 +1,2 @@
 * text=auto eol=lf
+tests/fixtures/labview2026/*.json -text

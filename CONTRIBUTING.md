@@ -11,8 +11,12 @@ pip install -r requirements-dev.txt
 ## Before you open a pull request
 
 - Keep public API in `src/lvjson/__init__.py`; internals live in `_`-prefixed modules.
-- Add a test for the behaviour you change. Tests inject time, disk and network; they
-  never touch the real thing.
+- Add a test for the behaviour you change. Claims about LabVIEW's output are pinned to the
+  genuine captures in `tests/fixtures/labview2026/`; never hand-write a file there. New
+  captures come from `scripts/capture-labview-json.ps1` and get a manifest entry.
+- The end-to-end tests install the package editable and run the real `lvjson` script. Inside
+  a virtual environment they install into it; outside one they build a throwaway environment,
+  which needs network access to fetch the build backend.
 - Run `scripts/check.ps1` (format, lint, types, tests) and make sure it passes.
 - One logical change per commit, imperative subject line.
 

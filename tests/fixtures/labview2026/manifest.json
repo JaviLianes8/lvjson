@@ -1,0 +1,103 @@
+{
+  "description": "Genuine output of LabVIEW's Flatten To JSON node, reconstructed byte for byte from the string LabVIEW returned (see method). Nothing in these files was written by hand.",
+  "labview_version": "26.3.1f1 (LabVIEW 2026, 64-bit, Windows)",
+  "captured": "2026-10-12",
+  "source_vi": "C:\\Program Files\\National Instruments\\LabVIEW 2026\\examples\\Strings\\Unflatten From JSON.vi",
+  "method": "The shipped example VI was loaded through LabVIEW's ActiveX VI Server interface (GetVIReference). Its front panel control 'Input' (cluster of Description{Name, Time}, Data (2D DBL array), Error) was set with SetControlValue, the VI was run unmodified, and the string indicator 'JSON', which the example wires directly from Flatten To JSON, was read back with GetControlValue. LabVIEW hands that string over the ActiveX boundary through the Windows ANSI code page (1252 on the capture machine), so it was re-encoded with code page 1252 to recover LabVIEW's exact bytes. scripts/capture-labview-json.ps1 reproduces the capture.",
+  "notes": [
+    "Time is the timestamp the example stamps at run time, so it differs between captures.",
+    "Data is set by the capture for every case except default; Description.Name is also set in the strings, escapes and formats cases.",
+    "The default case must run on a freshly loaded VI: a loaded VI keeps the last Input value written to it.",
+    "The escapes case passes U+00E9 into LabVIEW as the code page 1252 byte 0xE9; LabVIEW's output carries it as the UTF-8 bytes C3 A9.",
+    "A second run of scripts/capture-labview-json.ps1 reproduced the default, nonfinite, strings and escapes files exactly, apart from Time."
+  ],
+  "files": [
+    {
+      "file": "flatten_to_json_default.json",
+      "sha256": "331c245a34de5492fa3da87f9fd5b761ef98ec7df248e6d599eba22974728801",
+      "input": "the example's own default Input value",
+      "data": [
+        [
+          "-1",
+          "0",
+          "-1",
+          "0"
+        ],
+        [
+          "1",
+          "0.25",
+          "0",
+          "0.75"
+        ],
+        [
+          "-0.5",
+          "0",
+          "1",
+          "0"
+        ]
+      ]
+    },
+    {
+      "file": "flatten_to_json_nonfinite.json",
+      "sha256": "2399d1cbbc9a83da31927764d93461c9a47dbb7388bced7b1c8c2863d47023d0",
+      "input": "Data set to the 3x4 matrix below",
+      "data": [
+        [
+          "nan",
+          "inf",
+          "-inf",
+          "0"
+        ],
+        [
+          "0.1",
+          "1e300",
+          "-2.5e-310",
+          "3.141592653589793"
+        ],
+        [
+          "1.7976931348623157e308",
+          "5e-324",
+          "123456789.125",
+          "-0.0"
+        ]
+      ]
+    },
+    {
+      "file": "flatten_to_json_strings.json",
+      "sha256": "a49471d4563d19ebfa40cefe1b6a75d4a060cc7b129f03846b1741e6734c90af",
+      "input": "Data as in the nonfinite case; Description.Name set to the name below",
+      "name": "Inf -Inf NaN \"quoted\" back\\slash"
+    },
+    {
+      "file": "flatten_to_json_escapes.json",
+      "sha256": "714fd172bf7303b5b524272c6478c77f79e2a8abe0c1a4c1941ab5b9b64fd5cf",
+      "input": "Data as in the nonfinite case; Description.Name set to the name below",
+      "name": "tab\tnl\ncr\rctl\u0001 slash/ e-acute \u00e9 Infinity"
+    },
+    {
+      "file": "flatten_to_json_formats.json",
+      "sha256": "2b4609f2200e644a05eb3a87506b9fb5ac7a53b1a654453bf557096140c6b0bb",
+      "input": "Data set to the values below, where C's %g changes between fixed and exponent form; Description.Name set to 'formats'",
+      "data": [
+        [
+          "1e-5",
+          "0.0001",
+          "0.00012345",
+          "1e-300"
+        ],
+        [
+          "1e19",
+          "1e20",
+          "1e21",
+          "9007199254740992"
+        ],
+        [
+          "1.2345678901234568e20",
+          "1.5",
+          "-1e-10",
+          "65536"
+        ]
+      ]
+    }
+  ]
+}

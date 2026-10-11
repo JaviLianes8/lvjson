@@ -7,13 +7,12 @@ import math
 from typing import Any
 
 from ._errors import LVJSONError
-from ._parse import loads
-from ._policy import NanInf, check
-from ._tokens import json_to_labview
+from ._labview_format import encode_labview
+from ._parse import has_nonfinite, loads
+from ._policy import InfSpelling, NanInf, NumberStyle, check, check_output
+from ._tokens import shorten_infinity
 
-# Compact separators mirror LabVIEW's own flattened output and keep the payload small. The
-# standard library formats floats with the shortest round-trippable repr, so a value read with
-# loads and written back survives unchanged.
+# Compact separators match LabVIEW's own flattened output and keep the payload small.
 _COMPACT = (",", ":")
 
 
@@ -27,22 +26,40 @@ def _to_null(obj: Any) -> Any:
     return obj
 
 
-def _encode(obj: Any, nan_inf: NanInf, indent: int | None, sort_keys: bool) -> str:
-    """Encode to standard JSON text (``Infinity`` spelling), applying the non-finite policy."""
+def _encode(
+    obj: Any,
+    nan_inf: NanInf,
+    indent: int | None,
+    sort_keys: bool,
+    number_style: NumberStyle = "shortest",
+    infinity: InfSpelling = "Infinity",
+) -> str:
+    """Encode to JSON text, applying the non-finite policy and the output spelling."""
     check(nan_inf)
-    payload = _to_null(obj) if nan_inf == "null" else obj
-    separators = None if indent is not None else _COMPACT
+    allow_nan = nan_inf == "extend"
     try:
-        return json.dumps(
+        if nan_inf == "reject" and has_nonfinite(obj):
+            raise LVJSONError("non-finite float is not allowed under nan_inf='reject'")
+        payload = _to_null(obj) if nan_inf == "null" else obj
+        if number_style == "labview":
+            return encode_labview(
+                payload, infinity=infinity, allow_nan=allow_nan, indent=indent, sort_keys=sort_keys
+            )
+        text = json.dumps(
             payload,
-            allow_nan=(nan_inf == "extend"),
+            allow_nan=allow_nan,
             indent=indent,
-            separators=separators,
+            separators=None if indent is not None else _COMPACT,
             sort_keys=sort_keys,
             ensure_ascii=False,
         )
+    except LVJSONError:
+        raise
     except ValueError as exc:
         raise LVJSONError(str(exc)) from exc
+    except RecursionError as exc:
+        raise LVJSONError("value is circular or nested too deeply to encode") from exc
+    return shorten_infinity(text) if infinity == "Inf" else text
 
 
 def dumps(
@@ -51,19 +68,27 @@ def dumps(
     nan_inf: NanInf = "extend",
     indent: int | None = None,
     sort_keys: bool = False,
+    infinity: InfSpelling = "Infinity",
+    number_style: NumberStyle = "shortest",
 ) -> str:
     """Serialise ``obj`` to JSON the LabVIEW JSON node can ingest.
 
-    Floats keep full double precision (the shortest representation that round-trips), so there
-    is no silent digit loss on the way back into LabVIEW. ``nan_inf`` controls non-finite
-    floats: ``'extend'`` emits LabVIEW's ``NaN`` / ``Inf`` / ``-Inf`` tokens, ``'null'``
-    replaces each with ``null``, and ``'reject'`` raises :class:`LVJSONError`.
+    ``nan_inf`` controls non-finite floats: ``'extend'`` emits ``NaN`` and the infinities,
+    ``'null'`` replaces each with ``null``, and ``'reject'`` raises :class:`LVJSONError`.
+    ``infinity`` picks their spelling: ``'Infinity'`` (the default) is what LabVIEW 2026 writes,
+    ``'Inf'`` gives ``Inf`` / ``-Inf`` for consumers that expect it.
+
+    ``number_style`` picks how finite floats are written. ``'shortest'`` (the default) uses the
+    shortest text that round-trips the double. ``'labview'`` uses LabVIEW's own 20-significant-
+    digit form, so a value read from Flatten To JSON output is re-emitted byte for byte. Both
+    styles preserve every double exactly. A float dict key follows the same style.
     """
-    return json_to_labview(_encode(obj, nan_inf, indent, sort_keys))
+    check_output(infinity, number_style)
+    return _encode(obj, nan_inf, indent, sort_keys, number_style, infinity)
 
 
 def to_portable(
-    text: str,
+    text: str | bytes,
     *,
     nan_inf: NanInf = "null",
     indent: int | None = None,
@@ -72,38 +97,60 @@ def to_portable(
     """Convert LabVIEW JSON text to standard JSON that ordinary parsers accept.
 
     Non-finite floats follow ``nan_inf``: the default ``'null'`` yields strict RFC 8259 JSON,
-    ``'extend'`` keeps them as the ``json`` module's ``Infinity`` / ``-Infinity`` tokens, and
-    ``'reject'`` raises :class:`LVJSONError`.
+    ``'extend'`` keeps them as the ``json`` module's ``NaN`` / ``Infinity`` / ``-Infinity``
+    tokens, and ``'reject'`` raises :class:`LVJSONError`. Either input spelling is accepted.
     """
+    check(nan_inf)
     return _encode(loads(text, nan_inf="extend"), nan_inf, indent, sort_keys)
 
 
 def to_labview(
-    text: str,
+    text: str | bytes,
     *,
     nan_inf: NanInf = "extend",
     indent: int | None = None,
     sort_keys: bool = False,
+    infinity: InfSpelling = "Infinity",
+    number_style: NumberStyle = "shortest",
 ) -> str:
     """Convert standard (or LabVIEW) JSON text to the form the LabVIEW JSON node ingests.
 
-    This is the reverse of :func:`to_portable`: non-finite tokens come out as LabVIEW's
-    ``NaN`` / ``Inf`` / ``-Inf`` under ``'extend'``, following ``nan_inf`` otherwise.
+    This is the reverse of :func:`to_portable`. Non-finite floats follow ``nan_inf`` and are
+    spelled per ``infinity``; finite floats follow ``number_style`` (see :func:`dumps`).
     """
-    return dumps(loads(text, nan_inf="extend"), nan_inf=nan_inf, indent=indent, sort_keys=sort_keys)
+    check(nan_inf)
+    check_output(infinity, number_style)
+    return dumps(
+        loads(text, nan_inf="extend"),
+        nan_inf=nan_inf,
+        indent=indent,
+        sort_keys=sort_keys,
+        infinity=infinity,
+        number_style=number_style,
+    )
 
 
 def round_trip(
-    text: str,
+    text: str | bytes,
     *,
     nan_inf: NanInf = "extend",
     indent: int | None = None,
     sort_keys: bool = False,
+    infinity: InfSpelling = "Infinity",
+    number_style: NumberStyle = "shortest",
 ) -> str:
     """Parse LabVIEW JSON and re-emit it in canonical, LabVIEW-ingestable form.
 
-    Finite numbers are preserved exactly (they decode to IEEE 754 doubles and re-encode with
-    the shortest round-trippable form), so this normalises LabVIEW's adaptive 13 to 17 digit
-    formatting without changing any value. Non-finite floats follow ``nan_inf``.
+    Finite numbers are preserved exactly: they decode to IEEE 754 doubles and re-encode in the
+    chosen ``number_style``. With the default ``'shortest'`` this turns LabVIEW's 20-digit
+    ``0.10000000000000000555`` into ``0.1`` without changing the value. Non-finite floats
+    follow ``nan_inf`` and ``infinity``.
     """
-    return to_labview(text, nan_inf=nan_inf, indent=indent, sort_keys=sort_keys)
+    return to_labview(
+        text,
+        nan_inf=nan_inf,
+        indent=indent,
+        sort_keys=sort_keys,
+        infinity=infinity,
+        number_style=number_style,
+    )
