@@ -29,9 +29,13 @@ def _parse_int(token: str) -> int | float:
 
 
 def decode_text(text: str | bytes) -> str:
-    """Return ``text`` as ``str``, decoding bytes as UTF-8 (LabVIEW's JSON encoding)."""
+    """Return ``text`` as ``str``, decoding bytes as UTF-8 (LabVIEW's JSON encoding).
+
+    A leading byte order mark is dropped from either form.
+    """
     if isinstance(text, str):
-        return text
+        # Tolerate a byte order mark in str input too, as it is for bytes.
+        return text[1:] if text.startswith("\ufeff") else text
     if isinstance(text, (bytes, bytearray)):
         try:
             return bytes(text).decode("utf-8-sig")
@@ -50,7 +54,7 @@ def loads(text: str | bytes, *, nan_inf: NanInf = "extend") -> Any:
 
     The bare token ``-0``, which LabVIEW writes for a negative-zero double, decodes to ``-0.0``
     rather than the integer ``0``. ``bytes`` input is decoded as UTF-8, the encoding LabVIEW
-    writes, with a leading byte order mark tolerated. Malformed JSON always raises
+    writes. A leading byte order mark is tolerated in either form. Malformed JSON always raises
     :class:`LVJSONError`.
     """
     check(nan_inf)

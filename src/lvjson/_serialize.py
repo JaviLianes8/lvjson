@@ -32,18 +32,22 @@ def _encode(
     indent: int | None,
     sort_keys: bool,
     number_style: NumberStyle = "shortest",
+    infinity: InfSpelling = "Infinity",
 ) -> str:
-    """Encode to JSON text with the ``Infinity`` spelling, applying the non-finite policy."""
+    """Encode to JSON text, applying the non-finite policy and the output spelling."""
     check(nan_inf)
-    if nan_inf == "reject" and has_nonfinite(obj):
-        raise LVJSONError("non-finite float is not allowed under nan_inf='reject'")
-    payload = _to_null(obj) if nan_inf == "null" else obj
+    allow_nan = nan_inf == "extend"
     try:
+        if nan_inf == "reject" and has_nonfinite(obj):
+            raise LVJSONError("non-finite float is not allowed under nan_inf='reject'")
+        payload = _to_null(obj) if nan_inf == "null" else obj
         if number_style == "labview":
-            return encode_labview(payload, infinity="Infinity", indent=indent, sort_keys=sort_keys)
-        return json.dumps(
+            return encode_labview(
+                payload, infinity=infinity, allow_nan=allow_nan, indent=indent, sort_keys=sort_keys
+            )
+        text = json.dumps(
             payload,
-            allow_nan=(nan_inf == "extend"),
+            allow_nan=allow_nan,
             indent=indent,
             separators=None if indent is not None else _COMPACT,
             sort_keys=sort_keys,
@@ -53,6 +57,9 @@ def _encode(
         raise
     except ValueError as exc:
         raise LVJSONError(str(exc)) from exc
+    except RecursionError as exc:
+        raise LVJSONError("value is circular or nested too deeply to encode") from exc
+    return shorten_infinity(text) if infinity == "Inf" else text
 
 
 def dumps(
@@ -74,11 +81,10 @@ def dumps(
     ``number_style`` picks how finite floats are written. ``'shortest'`` (the default) uses the
     shortest text that round-trips the double. ``'labview'`` uses LabVIEW's own 20-significant-
     digit form, so a value read from Flatten To JSON output is re-emitted byte for byte. Both
-    styles preserve every double exactly.
+    styles preserve every double exactly. A float dict key follows the same style.
     """
     check_output(infinity, number_style)
-    text = _encode(obj, nan_inf, indent, sort_keys, number_style)
-    return shorten_infinity(text) if infinity == "Inf" else text
+    return _encode(obj, nan_inf, indent, sort_keys, number_style, infinity)
 
 
 def to_portable(

@@ -13,13 +13,14 @@ NanInf = Literal["extend", "null", "reject"]
 
 # How the infinities are spelled on output:
 # "Infinity": Infinity / -Infinity, what LabVIEW 2026 writes and what the json module reads.
-# "Inf":      Inf / -Inf, for consumers that expect the short spelling. LabVIEW 2026 does not
-#   write it, and its JSON lexer's keyword table has no entry for it.
+# "Inf":      Inf / -Inf, for consumers that expect the short spelling. LabVIEW 2026 was not
+#   seen to write it (DBL values, default settings), and its JSON lexer's keyword table has no
+#   entry for it.
 InfSpelling = Literal["Infinity", "Inf"]
 
 # How finite floats are written:
 # "shortest": the shortest text that round-trips the double (Python's repr), e.g. 0.1 and 1.0.
-# "labview":  LabVIEW's own form, 20 significant digits with trailing zeros dropped (C "%.20g"),
+# "labview":  LabVIEW's DBL form, 20 significant digits with trailing zeros dropped (C "%.20g"),
 #   e.g. 0.10000000000000000555 and 1. It reproduces captured Flatten To JSON output exactly.
 NumberStyle = Literal["shortest", "labview"]
 

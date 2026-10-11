@@ -98,3 +98,7 @@ def test_has_nonfinite_is_true_for_nested_nan() -> None:
 
 def test_has_nonfinite_is_false_for_finite_structure() -> None:
     assert has_nonfinite({"a": [1.0, 2, "inf", None, True]}) is False
+
+
+def test_loads_tolerates_a_byte_order_mark_in_str_input() -> None:
+    assert loads("﻿[1, Inf]") == [1, math.inf]

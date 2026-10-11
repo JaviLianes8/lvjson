@@ -36,9 +36,34 @@ def test_labview_style_coerces_keys_like_json() -> None:
     assert dumps(value, number_style="labview") == '{"7":"i","true":"t","null":"n","2.5":"f"}'
 
 
-def test_labview_style_refuses_a_nonfinite_key() -> None:
-    with pytest.raises(LVJSONError):
-        dumps({math.nan: 1}, number_style="labview")
+@pytest.mark.parametrize("style", ["shortest", "labview"])
+def test_both_styles_treat_a_nonfinite_key_alike(style: str) -> None:
+    value = {math.nan: 1, math.inf: 2, -math.inf: 3}
+    expected = '{"NaN":1,"Infinity":2,"-Infinity":3}'
+    assert dumps(value, number_style=style) == expected  # type: ignore[arg-type]
+    for policy in ("null", "reject"):
+        with pytest.raises(LVJSONError):
+            dumps(value, number_style=style, nan_inf=policy)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("style", ["shortest", "labview"])
+def test_both_styles_sort_on_the_original_keys(style: str) -> None:
+    assert dumps({10: 1, 2: 2}, sort_keys=True, number_style=style) == '{"2":2,"10":1}'  # type: ignore[arg-type]
+    with pytest.raises(TypeError):
+        dumps({"a": 1, 2: 2}, sort_keys=True, number_style=style)  # type: ignore[arg-type]
+
+
+def test_labview_style_writes_float_keys_in_its_own_digits() -> None:
+    assert dumps({0.1: 1}, number_style="labview") == '{"0.10000000000000000555":1}'
+    assert dumps({0.1: 1}) == '{"0.1":1}'
+
+
+def test_labview_style_ignores_a_float_subclass_format_override() -> None:
+    class Loud(float):
+        def __format__(self, spec: str) -> str:
+            return "WEIRD"
+
+    assert dumps([Loud(0.5)], number_style="labview") == "[0.5]"
 
 
 def test_labview_style_refuses_unsupported_types() -> None:

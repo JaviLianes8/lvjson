@@ -116,3 +116,15 @@ def test_to_portable_and_to_labview_round_trip() -> None:
     labview = '{"a":Infinity,"b":-Infinity,"c":NaN,"d":1.5}'
     portable = to_portable(labview, nan_inf="extend")
     assert to_labview(portable) == labview
+
+
+def test_circular_values_raise_lvjson_error_under_every_policy() -> None:
+    loop: list[object] = [1.5]
+    loop.append(loop)
+    table: dict[str, object] = {}
+    table["self"] = table
+    for value in (loop, table):
+        for policy in ("extend", "null", "reject"):
+            for style in ("shortest", "labview"):
+                with pytest.raises(LVJSONError):
+                    dumps(value, nan_inf=policy, number_style=style)

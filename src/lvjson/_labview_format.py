@@ -1,10 +1,12 @@
 """Encode Python objects exactly the way LabVIEW's Flatten To JSON formats them.
 
-Captured LabVIEW 2026 output shows doubles written with 20 significant digits and trailing
-zeros dropped, which is C's ``%.20g``: ``0.1`` becomes ``0.10000000000000000555``, ``1.0``
+Captured LabVIEW 2026 output shows DBL values written with 20 significant digits and trailing
+zeros dropped, matching C's ``%.20g`` for every captured value, including where ``%g`` switches
+to exponent form: ``0.1`` becomes ``0.10000000000000000555``, ``1e-05`` becomes
+``1.0000000000000000818e-05``, ``1e20`` becomes ``1e+20``, ``1.0``
 becomes ``1``, ``-0.0`` becomes ``-0`` and ``1e300`` becomes ``1.0000000000000000525e+300``.
 The standard ``json`` encoder hard-wires ``float.__repr__``, so this module walks the value
-itself. Strings, keys and layout match ``json.dumps`` with ``ensure_ascii=False``, which agrees
+itself. Strings and layout match ``json.dumps`` with ``ensure_ascii=False``, which agrees
 with the captured string escapes (``\\t``, ``\\n``, ``\\r``, ``\\u0001``, raw UTF-8, ``/`` kept).
 """
 
@@ -23,11 +25,12 @@ def format_double(value: float, infinity: str) -> str:
         return "NaN"
     if math.isinf(value):
         return infinity if value > 0 else "-" + infinity
-    return f"{value:.20g}"
+    # float.__format__ directly, so a subclass overriding __format__ cannot change the digits.
+    return float.__format__(value, ".20g")
 
 
-def _key(key: object) -> str:
-    # The same key coercions json.dumps applies, so both number styles accept the same input.
+def _key(key: object, allow_nan: bool) -> str:
+    # The key coercions json.dumps applies; a float key is written in the labview number style.
     if isinstance(key, str):
         return key
     if key is True:
@@ -37,17 +40,19 @@ def _key(key: object) -> str:
     if key is None:
         return "null"
     if isinstance(key, float):
-        if not math.isfinite(key):
-            raise LVJSONError(f"non-finite dict key {key!r} has no JSON form")
-        return f"{key:.20g}"
+        if not math.isfinite(key) and not allow_nan:
+            raise LVJSONError(f"non-finite dict key {key!r} is not allowed under this policy")
+        # A non-finite key becomes a string, so it takes json's spelling in both styles.
+        return format_double(key, "Infinity")
     if isinstance(key, int):
         return int.__repr__(key)
     raise TypeError(f"keys must be str, int, float, bool or None, not {type(key).__name__}")
 
 
 class _Encoder:
-    def __init__(self, infinity: str, indent: int | None, sort_keys: bool) -> None:
+    def __init__(self, infinity: str, allow_nan: bool, indent: int | None, sort_keys: bool) -> None:
         self.infinity = infinity
+        self.allow_nan = allow_nan
         self.indent = indent
         self.sort_keys = sort_keys
         self.key_sep = ":" if indent is None else ": "
@@ -76,9 +81,11 @@ class _Encoder:
         return [self.encode(item, level) for item in obj]
 
     def _members(self, obj: Any, level: int) -> list[str]:
-        pairs = [(_key(key), value) for key, value in obj.items()]
+        items = obj.items()
         if self.sort_keys:
-            pairs.sort(key=lambda pair: pair[0])
+            # Sort on the original keys before coercion, exactly as json.dumps does.
+            items = sorted(items, key=lambda pair: pair[0])
+        pairs = [(_key(key, self.allow_nan), value) for key, value in items]
         return [
             json.dumps(key, ensure_ascii=False) + self.key_sep + self.encode(value, level)
             for key, value in pairs
@@ -102,6 +109,12 @@ class _Encoder:
         return open_ + inner + ("," + inner).join(chunks) + outer + close
 
 
-def encode_labview(obj: Any, *, infinity: str, indent: int | None, sort_keys: bool) -> str:
-    """Encode ``obj`` with LabVIEW's number formatting; non-finite floats use ``infinity``."""
-    return _Encoder(infinity, indent, sort_keys).encode(obj, 0)
+def encode_labview(
+    obj: Any, *, infinity: str, allow_nan: bool, indent: int | None, sort_keys: bool
+) -> str:
+    """Encode ``obj`` with LabVIEW's number formatting; non-finite floats use ``infinity``.
+
+    The caller applies the non-finite policy to values first; ``allow_nan`` only decides
+    whether a non-finite dict key is written (as a string) or refused.
+    """
+    return _Encoder(infinity, allow_nan, indent, sort_keys).encode(obj, 0)
