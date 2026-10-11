@@ -6,13 +6,14 @@
 #
 #   pwsh scripts/capture-labview-json.ps1 -Mode nonfinite -OutDir tests/fixtures/labview2026
 #
-# Modes: default (the example's own input), nonfinite, strings, escapes.
-# Copy the example VI and JSON_Example_Input.ctl to a scratch folder and pass -ViPath to it, so
-# the installed example is never touched. Quit LabVIEW when you are done.
+# Modes: default (the example's own input), nonfinite, strings, escapes, formats.
+# -ViPath is required: copy "Unflatten From JSON.vi" and JSON_Example_Input.ctl from the
+# install's examples\Strings folder to a scratch folder and point -ViPath at the copy, so the
+# installed example is never touched. Quit LabVIEW when you are done.
 param(
-    [string]$ViPath = "C:\Program Files\National Instruments\LabVIEW 2026\examples\Strings\Unflatten From JSON.vi",
+    [Parameter(Mandatory = $true)][string]$ViPath,
     [string]$OutDir = ".",
-    [ValidateSet("default", "nonfinite", "strings", "escapes")][string]$Mode = "default"
+    [ValidateSet("default", "nonfinite", "strings", "escapes", "formats")][string]$Mode = "default"
 )
 $ErrorActionPreference = "Stop"
 $BF = [System.Reflection.BindingFlags]
@@ -44,6 +45,16 @@ if ($Mode -ne "default") {
     $data[2, 1] = 5e-324
     $data[2, 2] = 123456789.125
     $data[2, 3] = -0.0
+    if ($Mode -eq "formats") {
+        # Values where C's %g switches between fixed and exponent form, and 2-digit exponents.
+        $formats = @(
+            1e-5, 0.0001, 0.00012345, 1e-300,
+            1e19, 1e20, 1e21, 9007199254740992.0,
+            1.2345678901234568e20, 1.5, -1e-10, 65536.0
+        )
+        for ($i = 0; $i -lt 12; $i++) { $data[[math]::Floor($i / 4), ($i % 4)] = $formats[$i] }
+        $inp[0][0] = "formats"
+    }
     $inp[1] = $data
     if ($Mode -eq "strings") { $inp[0][0] = 'Inf -Inf NaN "quoted" back\slash' }
     if ($Mode -eq "escapes") {

@@ -20,9 +20,9 @@ from lvjson import count_nonfinite, dumps, loads, round_trip, to_labview, to_por
 _DIR = Path(__file__).parent / "fixtures" / "labview2026"
 _MANIFEST = json.loads((_DIR / "manifest.json").read_text(encoding="utf-8"))
 _FILES = [entry["file"] for entry in _MANIFEST["files"]]
-_NONFINITE = [name for name in _FILES if name != "flatten_to_json_default.json"]
+_NONFINITE = [f"flatten_to_json_{case}.json" for case in ("nonfinite", "strings", "escapes")]
 
-# The doubles the capture wrote into Data for every case except the default one.
+# The doubles the capture wrote into Data for the nonfinite, strings and escapes cases.
 _DATA = [
     [math.nan, math.inf, -math.inf, 0.0],
     [0.1, 1e300, -2.5e-310, 3.141592653589793],
@@ -119,3 +119,16 @@ def test_labview_string_escapes_and_utf8_are_read_and_rewritten_exactly() -> Non
     name = loads(raw)["Description"]["Name"]
     assert name == "tab\tnl\ncr\rctl\x01 slash/ e-acute é Infinity"
     assert dumps(name, number_style="labview").encode("utf-8") in raw
+
+
+def test_number_form_boundaries_match_c_g20_exactly() -> None:
+    raw = _raw("flatten_to_json_formats.json")
+    values = [1e-5, 0.0001, 0.00012345, 1e-300, 1e19, 1e20, 1e21, 9007199254740992.0]
+    values += [1.2345678901234568e20, 1.5, -1e-10, 65536.0]
+    expected = [f"{value:.20g}" for value in values]
+    rows = ",".join("[" + ",".join(expected[i : i + 4]) + "]" for i in (0, 4, 8))
+    assert f'"Data":[{rows}]'.encode() in raw
+    for spelled in (b"1.0000000000000000818e-05", b"10000000000000000000,1e+20,1e+21"):
+        assert spelled in raw
+    decoded = [value for row in loads(raw)["Data"] for value in row]
+    assert [_bits(value) for value in decoded] == [_bits(value) for value in values]
