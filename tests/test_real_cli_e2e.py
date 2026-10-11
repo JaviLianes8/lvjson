@@ -1,18 +1,19 @@
 """Real end-to-end: install the package editable and drive the genuine ``lvjson`` script.
 
 No imports of the package's CLI, no mocks: every test shells out to the console script that
-pip generated, feeding it the bytes captured from LabVIEW 2026. Inside a virtual environment
-the project is installed into it; otherwise a throwaway virtual environment is created.
+pip generated, feeding it the bytes captured from LabVIEW 2026. The project is installed into
+a throwaway virtual environment, so the developer's own environment is never modified. The
+build backend (hatchling, editables) is borrowed from the running interpreter for the install
+only, so no network is needed; the test is skipped with a reason when it is not available.
 """
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import shutil
 import subprocess
-import sys
-import sysconfig
 import venv
 from pathlib import Path
 
@@ -26,22 +27,39 @@ _NONFINITE = _FIXTURES / "flatten_to_json_nonfinite.json"
 _ESCAPES = _FIXTURES / "flatten_to_json_escapes.json"
 
 
-def _scripts_dir(env_dir: Path) -> Path:
-    return env_dir / ("Scripts" if os.name == "nt" else "bin")
+def _backend_dirs() -> list[str]:
+    dirs: list[str] = []
+    for name in ("hatchling", "editables"):
+        spec = importlib.util.find_spec(name)
+        if spec is None or spec.origin is None:
+            pytest.skip(f"{name} is needed to build the editable install (pip install -e .[dev])")
+        parent = str(Path(spec.origin).resolve().parents[1])
+        if parent not in dirs:
+            dirs.append(parent)
+    return dirs
 
 
 @pytest.fixture(scope="module")
 def script(tmp_path_factory: pytest.TempPathFactory) -> str:
-    if sys.prefix != sys.base_prefix:
-        python, scripts = sys.executable, Path(sysconfig.get_path("scripts"))
-        extra = ["--no-build-isolation"]
-    else:
-        env_dir = tmp_path_factory.mktemp("venv")
+    backend = _backend_dirs()
+    env_dir = tmp_path_factory.mktemp("venv")
+    try:
         venv.EnvBuilder(with_pip=True).create(env_dir)
-        scripts = _scripts_dir(env_dir)
-        python, extra = str(scripts / "python"), []
-    command = [python, "-m", "pip", "install", "--quiet", "--no-deps", *extra, "-e", str(_ROOT)]
-    subprocess.run(command, check=True, capture_output=True, timeout=600)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        pytest.skip(f"cannot create a virtual environment with pip: {exc}")
+    scripts = env_dir / ("Scripts" if os.name == "nt" else "bin")
+    python = str(scripts / "python")
+    query = "import sysconfig; print(sysconfig.get_path('purelib'))"
+    purelib = subprocess.run([python, "-c", query], capture_output=True, text=True, check=True)
+    # A .pth file appends the backend's directories after the environment's own packages, so the
+    # environment's pip still wins. It is removed once the install is done.
+    borrowed = Path(purelib.stdout.strip()) / "_borrowed_build_backend.pth"
+    borrowed.write_text("".join(f"{line}\n" for line in backend), encoding="utf-8")
+    command = [python, "-m", "pip", "install", "--quiet", "--no-deps", "--no-build-isolation"]
+    try:
+        subprocess.run([*command, "-e", str(_ROOT)], check=True, capture_output=True, timeout=600)
+    finally:
+        borrowed.unlink()
     found = shutil.which("lvjson", path=str(scripts))
     assert found is not None, "pip did not install the lvjson console script"
     return found
