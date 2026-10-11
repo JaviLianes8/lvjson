@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from collections.abc import Sequence
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from . import __version__
 from ._errors import LVJSONError
@@ -29,7 +30,7 @@ examples:
   # spell the infinities Inf / -Inf for a consumer that expects them
   lvjson to-labview data.json --infinity Inf -o out.json
 
-  # list the non-finite tokens in a file; exit 1 if there are any
+  # list the non-finite values in a file; exit 1 if there are any
   lvjson check data.json --strict
 
 exit status: 0 on success, 1 on an input, conversion or --strict failure, 2 on bad usage.
@@ -109,21 +110,34 @@ def _build_parser() -> argparse.ArgumentParser:
     check = commands.add_parser("check", help="parse a file and list its non-finite tokens")
     check.add_argument("file", nargs="?", help="input file, or stdin when omitted or '-'")
     check.add_argument(
-        "--strict", action="store_true", help="exit 1 if any non-finite token is present"
+        "--strict", action="store_true", help="exit 1 if any non-finite value is present"
     )
     return parser
 
 
+def _nonfinite_values(obj: Any) -> int:
+    if isinstance(obj, float):
+        return 0 if math.isfinite(obj) else 1
+    if isinstance(obj, dict):
+        return sum(_nonfinite_values(value) for value in obj.values())
+    if isinstance(obj, list):
+        return sum(_nonfinite_values(item) for item in obj)
+    return 0
+
+
 def _check(args: argparse.Namespace) -> int:
     text = decode_text(_read(args.file))
-    loads(text)
     counts = count_nonfinite(text)
+    # A finite-looking number such as 1e400 overflows to infinity when parsed.
+    overflow = _nonfinite_values(loads(text)) - sum(counts.values())
     name = args.file if args.file not in (None, "-") else "<stdin>"
-    if not counts:
+    found = [f"{token} x{count}" for token, count in counts.items()]
+    if overflow > 0:
+        found.append(f"numbers that overflow a double x{overflow}")
+    if not found:
         _write(f"{name}: valid, no non-finite tokens (strict JSON)", None)
         return 0
-    listed = ", ".join(f"{token} x{count}" for token, count in counts.items())
-    _write(f"{name}: valid, non-finite tokens: {listed}", None)
+    _write(f"{name}: valid, non-finite values: {', '.join(found)}", None)
     return 1 if args.strict else 0
 
 
@@ -151,7 +165,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 number_style=cast(NumberStyle, args.number_style),
             )
         _write(result, args.output)
-    except (LVJSONError, OSError) as exc:
+    except (LVJSONError, OSError, UnicodeError) as exc:
         print(f"lvjson: {exc}", file=sys.stderr)
         return 1
     return 0

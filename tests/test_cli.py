@@ -102,8 +102,25 @@ def test_check_lists_tokens_and_strict_fails(
     path.write_text('[NaN, Infinity, -Infinity, "NaN"]', encoding="utf-8")
     assert main(["check", str(path)]) == 0
     out = capsys.readouterr().out
-    assert "non-finite tokens: NaN x1, Infinity x1, -Infinity x1" in out
+    assert "non-finite values: NaN x1, Infinity x1, -Infinity x1" in out
     assert main(["check", str(path), "--strict"]) == 1
+
+
+def test_check_flags_numbers_that_overflow_to_infinity(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _stdin(monkeypatch, b"[1e400, NaN, -1e999]")
+    assert main(["check", "--strict"]) == 1
+    out = capsys.readouterr().out
+    assert "NaN x1, numbers that overflow a double x2" in out
+
+
+def test_unencodable_output_is_a_clean_error(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _stdin(monkeypatch, b'["\\ud800"]')
+    assert main(["to-portable"]) == 1
+    assert "lvjson:" in capsys.readouterr().err
 
 
 def test_check_passes_strict_json_under_strict(
