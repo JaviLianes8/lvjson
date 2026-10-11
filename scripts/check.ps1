@@ -2,12 +2,15 @@
 # Each step must exit 0 on its own; the first failure stops the script.
 $ErrorActionPreference = "Stop"
 
-foreach ($step in @(
+$steps = @(
     @("ruff", "format", "--check", "."),
     @("ruff", "check", "."),
-    @("mypy", "--strict", "src"),
+    @("mypy", "--strict", "src", "tests"),
     @("pytest")
-)) {
-    & $step[0] $step[1..($step.Length - 1)]
+)
+foreach ($step in $steps) {
+    $command = $step[0]
+    $arguments = @($step | Select-Object -Skip 1)
+    & $command @arguments
     if ($LASTEXITCODE -ne 0) { throw "$($step -join ' ') failed with exit code $LASTEXITCODE" }
 }

@@ -89,9 +89,10 @@ echo '{"x":0.1,"limit":Infinity}' | lvjson to-labview --number-style labview
 # the short spelling, written to a file (UTF-8, no trailing newline)
 lvjson to-labview data.json --infinity Inf -o out.json
 
-# list the non-finite tokens in a file; --strict exits 1 if there are any
+# list the non-finite values in a file (tokens, and numbers that overflow a double);
+# --strict exits 1 if there are any
 lvjson check data.json --strict
-# -> data.json: valid, non-finite tokens: NaN x1, Infinity x1, -Infinity x1
+# -> data.json: valid, non-finite values: NaN x1, Infinity x1, -Infinity x1
 ```
 
 Input is read as UTF-8 bytes and output written as UTF-8, whatever the console code page.
@@ -119,30 +120,37 @@ around that parse:
 
 ## What rests on evidence
 
-**Verified against real LabVIEW output.** Four files in `tests/fixtures/labview2026/` were
-captured from LabVIEW 2026 (26.3.1f1) by running the shipped example
-`examples\Strings\Unflatten From JSON.vi` unmodified, with chosen input values, and saving the
-string its Flatten To JSON node produced (method, inputs and hashes in `manifest.json`;
-`scripts/capture-labview-json.ps1` reproduces it). They show:
+**Verified against real LabVIEW output.** Five files in `tests/fixtures/labview2026/` hold
+the output of LabVIEW 2026 (26.3.1f1) running the shipped example
+`examples\Strings\Unflatten From JSON.vi` unmodified, with chosen input values. Each is the
+string its Flatten To JSON node produced, rebuilt byte for byte from what LabVIEW returned
+(method, inputs and hashes in `manifest.json`; `scripts/capture-labview-json.ps1` reproduces
+it, and a second run gave the same bytes apart from the run-time timestamp). For DBL values,
+with the example's settings, they show:
 
 - non-finite doubles written as the bare tokens `NaN`, `Infinity`, `-Infinity`;
-- doubles written as C `%.20g`: `0.10000000000000000555`, `1.0000000000000000525e+300`,
-  `4.9406564584124654418e-324`, whole values as `-1` or `0`, negative zero as `-0`;
+- numbers consistent with C `%.20g` for every captured double, including where `%g` switches
+  between fixed and exponent form: `0.10000000000000000555`, `1.0000000000000000818e-05`,
+  `0.00010000000000000000479`, `10000000000000000000`, `1e+20`, `1.0000000000000000525e+300`,
+  whole values as `-1` or `65536`, negative zero as `-0`;
 - every captured double decoding to exactly the double that went in;
 - compact separators, UTF-8 text, `\t` `\n` `\r` `\u0001` escapes, `/` left unescaped;
 - token-like words inside strings written as ordinary string content.
 
-`dumps(..., number_style="labview")` reproduces all four captures byte for byte.
+`dumps(..., number_style="labview")` reproduces all five captures byte for byte.
 
 **Supported by the runtime's strings only.** In `lvrt.dll` of the LabVIEW 2026 run-time, the
-JSON lexer's keyword table (offset `0x119cb20`) lists `NaN`, `Infinity`, `true`, `false`,
-`null` and has no entry for `Inf`. That suggests LabVIEW's own reader accepts `Infinity` and
-not `Inf`, which is why `"Infinity"` is the default output spelling. It was not exercised.
+JSON lexer's keyword table (offset `0x119cb20`) holds the suffixes `aN`, `nfinity`, `rue`,
+`alse`, `ull`, that is the keywords `NaN`, `Infinity`, `true`, `false`, `null`, and has no
+entry for `Inf`. That suggests LabVIEW's own reader accepts `Infinity` and not `Inf`, which is
+why `"Infinity"` is the default output spelling. It was not exercised.
 
 **Not verified.** Output with the node's *enable LabVIEW extensions* input set to false (the
-captured example does not wire it off), behaviour of LabVIEW versions other than 2026, and
-whether any LabVIEW reader accepts `Inf`. The `Inf` spelling is supported for other producers,
-not because LabVIEW was seen to use it.
+captured example does not wire it off); numeric types other than DBL (SGL and EXT were not
+captured, integers only as the example's small fields, and `number_style="labview"` targets
+DBL output); LabVIEW
+versions other than 2026; and whether any LabVIEW reader accepts `Inf`. The `Inf` spelling is
+supported for other producers, not because LabVIEW was seen to use it.
 
 ## License
 
