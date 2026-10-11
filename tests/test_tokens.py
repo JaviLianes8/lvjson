@@ -1,3 +1,5 @@
+import time
+
 from lvjson import count_nonfinite
 from lvjson._tokens import expand_inf, shorten_infinity
 
@@ -55,3 +57,16 @@ def test_count_nonfinite_is_empty_for_strict_json() -> None:
 
 def test_count_nonfinite_works_on_malformed_text() -> None:
     assert count_nonfinite("[NaN,") == {"NaN": 1}
+
+
+def test_an_unclosed_string_is_skipped_to_the_end() -> None:
+    assert expand_inf('[Inf, "abc Inf') == '[Infinity, "abc Inf'
+    assert count_nonfinite('["NaN') == {}
+
+
+def test_scanning_truncated_input_stays_linear() -> None:
+    hostile = ('"' + "\\") * 100_000  # 200 KB of quote/backslash pairs, never closed
+    start = time.perf_counter()
+    count_nonfinite(hostile)
+    expand_inf('{"Name":"' + '\\"' * 100_000)
+    assert time.perf_counter() - start < 1.0

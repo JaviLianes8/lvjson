@@ -12,10 +12,12 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator
 
-# A string literal is matched first so that its contents are skipped as a whole. Otherwise a
-# bare non-finite word, bounded so that "Infinity" is never read as "Inf" and "xNaN" is ignored.
+# A string literal is matched first so that its contents are skipped as a whole. An unclosed
+# string runs to the end of the text, so the scan stays linear on truncated input instead of
+# retrying at every later quote. Otherwise a bare non-finite word, bounded so that "Infinity"
+# is never read as "Inf" and "xNaN" is ignored.
 _SCAN = re.compile(
-    r'"[^"\\]*(?:\\.[^"\\]*)*"'
+    r'"[^"\\]*(?:\\.[^"\\]*)*(?:"|\\?\Z)'
     r"|(?<![\w.])(?P<token>-?(?:Infinity|Inf)|NaN)(?![\w.])",
     re.DOTALL,
 )
