@@ -11,6 +11,8 @@ PUBLIC_API: list[str] = [
     "has_nonfinite",
     "loads",
     "round_trip",
+    "to_labview",
+    "to_portable",
 ]
 
 
