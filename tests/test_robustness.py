@@ -220,3 +220,33 @@ def test_scanning_and_parsing_stay_linear(size: int) -> None:
         with contextlib.suppress(LVJSONError):
             loads(text)
     assert time.perf_counter() - start < 2.0
+
+
+class _LoudFloat(float):
+    def __repr__(self) -> str:
+        raise RuntimeError("repr must not be called")
+
+
+class _SwitchingDict(dict[str, Any]):
+    # Shows no value to the policy scan, then a NaN to the encoder.
+    def items(self) -> Any:
+        return [("x", math.nan)]
+
+    def values(self) -> Any:
+        return []
+
+
+def test_a_nonfinite_key_is_refused_without_calling_its_repr() -> None:
+    styles: tuple[NumberStyle, ...] = ("shortest", "labview")
+    for style in styles:
+        for policy in ("null", "reject"):
+            with pytest.raises(LVJSONError, match="only allowed under nan_inf='extend'") as info:
+                dumps({_LoudFloat("nan"): 1}, nan_inf=policy, number_style=style)
+            assert len(str(info.value)) < 80
+
+
+def test_reject_holds_even_when_a_container_changes_during_encoding() -> None:
+    with pytest.raises(LVJSONError, match="only allowed under nan_inf='extend'"):
+        dumps(_SwitchingDict(a=1), nan_inf="reject", number_style="labview")
+    with pytest.raises(LVJSONError):
+        dumps(_SwitchingDict(a=1), nan_inf="reject")

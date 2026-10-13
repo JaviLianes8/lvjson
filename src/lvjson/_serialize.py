@@ -3,28 +3,18 @@
 from __future__ import annotations
 
 import json
-import math
 from typing import Any
 
 from ._errors import LVJSONError
-from ._labview_format import encode_labview
+from ._labview_format import NONFINITE_KEY, encode_labview
 from ._parse import has_nonfinite, loads
 from ._policy import InfSpelling, NanInf, NumberStyle, check, check_indent, check_output
 from ._text import shorten
 from ._tokens import shorten_infinity
+from ._walk import nonfinite_key, to_null
 
 # Compact separators match LabVIEW's own flattened output and keep the payload small.
 _COMPACT = (",", ":")
-
-
-def _to_null(obj: Any) -> Any:
-    if isinstance(obj, float) and not math.isfinite(obj):
-        return None
-    if isinstance(obj, dict):
-        return {key: _to_null(value) for key, value in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [_to_null(item) for item in obj]
-    return obj
 
 
 def _encode(
@@ -40,7 +30,9 @@ def _encode(
     try:
         if nan_inf == "reject" and has_nonfinite(obj):
             raise LVJSONError("non-finite float is not allowed under nan_inf='reject'")
-        payload = _to_null(obj) if nan_inf == "null" else obj
+        if not allow_nan and nonfinite_key(obj):
+            raise LVJSONError(NONFINITE_KEY)
+        payload = to_null(obj) if nan_inf == "null" else obj
         if number_style == "labview":
             return encode_labview(
                 payload, infinity=infinity, allow_nan=allow_nan, indent=indent, sort_keys=sort_keys

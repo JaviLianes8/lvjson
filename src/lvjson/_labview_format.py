@@ -20,6 +20,10 @@ from ._digits import format_g20
 from ._errors import LVJSONError
 from ._text import type_name
 
+# Messages that never quote the value: a float subclass may have a huge or failing __repr__.
+NONFINITE_KEY = "a non-finite float dict key is only allowed under nan_inf='extend'"
+NONFINITE_VALUE = "a non-finite float is only allowed under nan_inf='extend'"
+
 
 def format_double(value: float, infinity: str) -> str:
     """Format one double as LabVIEW writes it; ``infinity`` is the positive-infinity token."""
@@ -42,7 +46,7 @@ def _key(key: object, allow_nan: bool) -> str:
         return "null"
     if isinstance(key, float):
         if not math.isfinite(key) and not allow_nan:
-            raise LVJSONError(f"non-finite dict key {key!r} is not allowed under this policy")
+            raise LVJSONError(NONFINITE_KEY)
         # A non-finite key becomes a string, so it takes json's spelling in both styles.
         return format_double(key, "Infinity")
     if isinstance(key, int):
@@ -71,6 +75,10 @@ class _Encoder:
         if isinstance(obj, int):
             return int.__repr__(obj)
         if isinstance(obj, float):
+            # Checked here too, so a container that changes between the policy scan and the
+            # encoding cannot slip a non-finite value past nan_inf="null" or "reject".
+            if not self.allow_nan and not math.isfinite(obj):
+                raise LVJSONError(NONFINITE_VALUE)
             return format_double(obj, self.infinity)
         if isinstance(obj, (list, tuple)):
             return self._container(obj, level, "[", "]", self._items)
