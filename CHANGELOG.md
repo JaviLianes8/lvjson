@@ -6,6 +6,53 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-13
+
+First stable release. The public API is the eleven names in `lvjson.__all__` (`loads`,
+`dumps`, `to_portable`, `to_labview`, `round_trip`, `count_nonfinite`, `has_nonfinite`,
+`LVJSONError`, `NanInf`, `InfSpelling`, `NumberStyle`) and the `lvjson` command, with the
+signatures, defaults and error types the guide documents. New LabVIEW 2026 captures show what
+Unflatten From JSON reads back from Flatten To JSON output.
+
+### Fixed
+
+- `number_style="labview"` rounds a double whose exact value lies halfway between two
+  20-digit results away from zero, as Flatten To JSON was captured doing (`2**-30` is written
+  `9.3132257461547851563e-10`). 0.3.0 rounded such ties to even and wrote `...562e-10`.
+- `loads` with `nan_inf="null"` returns `None`, and with `nan_inf="reject"` raises
+  `LVJSONError`, for a number that overflows a double (`1e400`). 0.3.0 returned `inf` in both.
+- `has_nonfinite` no longer raises `RecursionError` on circular or very deep values.
+- Error messages never quote more than 40 characters of a value or a type name and stay under
+  200 characters; text that is not UTF-8 is reported by byte offset.
+- Command line: a closed standard output exits with 1 quietly, a missing standard input is
+  bad input (exit 1), an interrupt exits with 130, usage errors no longer echo huge arguments,
+  and `check` reports input nested too deeply as bad input instead of a traceback.
+
+### Changed
+
+- `indent` must be `None` or a non-negative `int`: other types raise `TypeError`, negative
+  values `ValueError`. 0.3.0 passed them to `json` unchecked.
+- An option given as a `str` subclass (such as a `StrEnum` member) is checked by its text; any
+  other value that is not one of the listed strings raises `ValueError`.
+- `count_nonfinite` accepts UTF-8 `bytes` and `bytearray`, like the other readers; every
+  reader accepts `bytearray`.
+- Values of a `str` or `float` subclass are read and written by their plain value; overridden
+  methods do not change the output.
+- Project metadata: `Production/Stable`, Python 3.10 to 3.14, `Source` and `Documentation`
+  URLs; the sdist now holds only the package, tests, docs and license.
+
+### Added
+
+- `GUIDE.md`: every function, option, number form, error and command, the evidence, and the
+  changes from 0.3.0.
+- Captures of Unflatten From JSON reading Flatten To JSON output back
+  (`tests/fixtures/labview2026/readback_*`), made by `scripts/capture-labview-readback.ps1`:
+  every double reads back bit for bit except `-0`, which LabVIEW reads as `+0.0`.
+- Tests against independent oracles (exact rational arithmetic and the Windows C runtime's
+  `printf`), against RFC 8259 and NI's function pages (copies fetched locally by
+  `scripts/fetch_sources.py`, only their manifest is tracked), seeded fuzzing, and executable
+  README and GUIDE examples.
+
 ## [0.3.0]
 
 Checked against genuine LabVIEW 2026 Flatten To JSON output for the first time (captures and

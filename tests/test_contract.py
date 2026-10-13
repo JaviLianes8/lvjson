@@ -62,9 +62,11 @@ def test_source_files_stay_short() -> None:
         assert lines <= 200, f"{path.name} has {lines} lines"
 
 
-def test_readme_examples_run() -> None:
-    readme = (_ROOT / "README.md").read_text(encoding="utf-8")
-    blocks = re.findall(r"```python\n(.*?)```", readme, re.DOTALL)
-    assert blocks, "the README has no python examples"
-    for block in blocks:
-        exec(compile(block, "README.md", "exec"), {})
+def test_pyproject_declares_a_stable_release_for_every_supported_python() -> None:
+    text = _pyproject()
+    assert "Development Status :: 5 - Production/Stable" in text
+    for minor in range(10, 15):
+        assert f'"Programming Language :: Python :: 3.{minor}"' in text
+    assert 'requires-python = ">=3.10"' in text
+    for key in ("Homepage", "Source", "Issues", "Changelog"):
+        assert re.search(rf"^{key} = \"https://", text, re.M)
