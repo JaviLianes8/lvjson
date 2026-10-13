@@ -30,10 +30,12 @@ Unflatten From JSON reads back from Flatten To JSON output.
 
 ### Changed
 
-- `indent` must be `None` or a non-negative `int`: other types raise `TypeError`, negative
-  values `ValueError`. 0.3.0 passed them to `json` unchecked.
+- `indent` must be `None` or an `int` from 0 to 1024: other types (a `bool` included) raise
+  `TypeError`, values outside the range `ValueError`. 0.3.0 passed any value to `json`
+  unchecked. On the command line, `--indent` outside 0 to 1024 is a usage error (exit 2).
 - An option given as a `str` subclass (such as a `StrEnum` member) is checked by its text; any
-  other value that is not one of the listed strings raises `ValueError`.
+  other value that is not one of the listed strings raises `ValueError`, naming its type.
+- `LVJSONError.__module__` is `lvjson`; the class still lives in `lvjson._errors`.
 - `count_nonfinite` accepts UTF-8 `bytes` and `bytearray`, like the other readers.
 - Values of a `str` or `float` subclass are read and written by their plain value; overridden
   methods do not change the output.

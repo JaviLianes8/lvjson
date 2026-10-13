@@ -2,11 +2,30 @@
 
 from __future__ import annotations
 
+import re
+
 from ._errors import LVJSONError
 
 # Messages quote at most this many characters of a value or a type name, so a huge or hostile
-# argument can never make an error message huge.
+# argument can never make an error message huge, and stay shorter than _MESSAGE in total.
 _LIMIT = 40
+_MESSAGE = 200
+_WORD = re.compile(r"\S{" + str(_LIMIT + 1) + ",}")
+
+
+def shorten(message: str) -> str:
+    """Cut every word of ``message`` to 40 characters and the whole to under 200.
+
+    Used for messages that come from elsewhere (the ``json`` module, the operating system),
+    which may quote a type name, a path or a value at full length.
+
+    >>> shorten("Object of type " + "X" * 300 + " is not JSON serializable")
+    'Object of type XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX... is not JSON serializable'
+    """
+    message = _WORD.sub(lambda match: match.group(0)[:_LIMIT] + "...", message)
+    if len(message) >= _MESSAGE:
+        message = message[: _MESSAGE - 4] + "..."
+    return message
 
 
 def type_name(obj: object) -> str:

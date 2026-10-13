@@ -10,6 +10,7 @@ from ._errors import LVJSONError
 from ._labview_format import encode_labview
 from ._parse import has_nonfinite, loads
 from ._policy import InfSpelling, NanInf, NumberStyle, check, check_indent, check_output
+from ._text import shorten
 from ._tokens import shorten_infinity
 
 # Compact separators match LabVIEW's own flattened output and keep the payload small.
@@ -55,9 +56,9 @@ def _encode(
     except LVJSONError:
         raise
     except ValueError as exc:
-        raise LVJSONError(str(exc)[:200]) from None
+        raise LVJSONError(shorten(str(exc))) from None
     except TypeError as exc:
-        raise TypeError(str(exc)[:200]) from None
+        raise TypeError(shorten(str(exc))) from None
     except RecursionError:
         raise LVJSONError("value is circular or nested too deeply to encode") from None
     return shorten_infinity(text) if infinity == "Inf" else text

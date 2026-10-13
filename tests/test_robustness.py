@@ -13,6 +13,7 @@ import pytest
 
 from lvjson import (
     LVJSONError,
+    NumberStyle,
     count_nonfinite,
     dumps,
     has_nonfinite,
@@ -109,11 +110,19 @@ def test_option_errors_quote_at_most_forty_characters() -> None:
     assert len(str(info.value)) < 120
 
 
-def test_indent_must_be_a_non_negative_int() -> None:
+def test_indent_must_be_an_int_from_0_to_1024() -> None:
     assert dumps([1], indent=0) == "[\n1\n]"
+    assert dumps([1], indent=1024) == "[\n" + " " * 1024 + "1\n]"
     for bad in (-1, -100):
         with pytest.raises(ValueError, match="indent must not be negative"):
             dumps([1], indent=bad)
+    styles: tuple[NumberStyle, ...] = ("shortest", "labview")
+    for huge in (1025, 10**20):
+        for style in styles:
+            with pytest.raises(ValueError, match="indent must be at most 1024"):
+                dumps([1], indent=huge, number_style=style)
+        with pytest.raises(ValueError, match="at most 1024"):
+            to_portable("[1]", indent=huge)
     for wrong in ("  ", 1.5, True):
         with pytest.raises(TypeError, match="indent must be None or an int"):
             dumps([1], indent=wrong)  # type: ignore[arg-type]
@@ -125,9 +134,12 @@ def test_long_type_names_are_cut_in_messages() -> None:
         with pytest.raises(TypeError) as info:
             call()
         assert len(str(info.value)) < 120
-    with pytest.raises(TypeError) as info:
-        dumps([odd()])
-    assert len(str(info.value)) <= 200
+    for style in ("shortest", "labview"):
+        for value in ([odd()], {odd(): 1}):
+            with pytest.raises(TypeError) as info:
+                dumps(value, number_style=style)
+            message = str(info.value)
+            assert len(message) < 120 and "N" * 41 not in message, message
 
 
 def test_has_nonfinite_survives_circular_and_very_deep_values() -> None:

@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
-# Error messages printed by the command line are cut to this many characters.
+# Error lines printed by the command line are cut to at most this many characters.
 MESSAGE_LIMIT = 200
 
 
@@ -56,7 +56,7 @@ def emit(text: str) -> None:
 def report(message: str) -> None:
     """Print an error message to standard error, cut short, never raising."""
     if len(message) > MESSAGE_LIMIT:
-        message = message[:MESSAGE_LIMIT] + "..."
+        message = message[: MESSAGE_LIMIT - 3] + "..."
     try:
         print(message, file=sys.stderr, flush=True)
     except (OSError, ValueError, AttributeError, UnicodeError):

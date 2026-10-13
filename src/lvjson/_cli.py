@@ -11,9 +11,9 @@ from typing import NoReturn, cast
 from . import __version__
 from ._cli_io import MESSAGE_LIMIT, OutputClosed, emit, read_source, report, write_file
 from ._errors import LVJSONError
-from ._policy import InfSpelling, NanInf, NumberStyle
+from ._policy import MAX_INDENT, InfSpelling, NanInf, NumberStyle
 from ._serialize import to_labview, to_portable
-from ._text import decode_text
+from ._text import decode_text, shorten
 from ._tokens import count_nonfinite, expand_inf
 
 _EPILOG = """\
@@ -40,10 +40,23 @@ output, 2 on bad usage, 130 when interrupted.
 
 class _Parser(argparse.ArgumentParser):
     def error(self, message: str) -> NoReturn:
-        # argparse quotes the offending argument; keep a huge one from flooding the terminal.
-        if len(message) > MESSAGE_LIMIT:
-            message = message[:MESSAGE_LIMIT] + "..."
+        # argparse quotes the offending argument: cut long words, and keep the whole error line
+        # ("<prog>: error: <message>") within the limit.
+        message = shorten(message)
+        room = MESSAGE_LIMIT - len(f"{self.prog}: error: ")
+        if len(message) > room:
+            message = message[: max(room - 3, 0)] + "..."
         super().error(message)
+
+
+def _indent(text: str) -> int:
+    try:
+        value = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a whole number: {shorten(text)}") from None
+    if not 0 <= value <= MAX_INDENT:
+        raise argparse.ArgumentTypeError(f"must be from 0 to {MAX_INDENT}")
+    return value
 
 
 def _add_io(parser: argparse.ArgumentParser) -> None:
@@ -51,7 +64,7 @@ def _add_io(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "-o", "--output", metavar="FILE", help="write here (UTF-8, no trailing newline)"
     )
-    parser.add_argument("--indent", type=int, metavar="N", help="pretty-print with N spaces")
+    parser.add_argument("--indent", type=_indent, metavar="N", help="pretty-print with N spaces")
     parser.add_argument("--sort-keys", action="store_true", help="sort object keys")
 
 
@@ -111,7 +124,7 @@ def _overflows(text: str) -> int:
     try:
         json.loads(expand_inf(text), parse_float=number)
     except ValueError as exc:
-        raise LVJSONError(str(exc)[:MESSAGE_LIMIT]) from None
+        raise LVJSONError(shorten(str(exc))) from None
     except RecursionError:
         raise LVJSONError("JSON nesting is too deep to parse") from None
     return found
@@ -162,5 +175,5 @@ def main(argv: Sequence[str] | None = None) -> int:
     except KeyboardInterrupt:
         return 130
     except (LVJSONError, OSError, UnicodeError, ValueError) as exc:
-        report(f"lvjson: {exc}")
+        report(f"lvjson: {shorten(str(exc))}")
         return 1

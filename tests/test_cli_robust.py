@@ -91,8 +91,8 @@ def test_error_messages_are_cut_short(tmp_path: Path, capsys: pytest.CaptureFixt
     missing = tmp_path / ("m" * 150) / ("n" * 150)
     assert main(["to-portable", str(missing)]) == 1
     message = capsys.readouterr().err.strip()
-    assert message.startswith("lvjson: ") and message.endswith("...")
-    assert len(message) <= 203
+    assert message.startswith("lvjson: ") and "..." in message
+    assert len(message) <= 200
 
 
 def test_check_reports_deep_nesting_as_bad_input(
@@ -111,12 +111,39 @@ def test_check_counts_overflows_inside_strings_never(
     assert "numbers that overflow a double x2" in capsys.readouterr().out
 
 
-def test_negative_indent_is_bad_input(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize("value", ["-2", "1025", "99999999999999999999", "x"])
+def test_an_indent_outside_0_to_1024_is_bad_usage(
+    value: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    _stdin(monkeypatch, b"[1]")
-    assert main(["to-portable", "--indent", "-2"]) == 1
-    assert "indent must not be negative" in capsys.readouterr().err
+    with pytest.raises(SystemExit) as info:
+        main(["to-portable", "--indent", value])
+    assert info.value.code == 2
+    assert "argument --indent" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["to-portable", "--nan-inf", "z" * 5000],
+        ["z" * 5000],
+        ["to-portable", "--indent", "y" * 5000],
+    ],
+)
+def test_every_usage_error_line_stays_within_200_characters(
+    args: list[str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit):
+        main(args)
+    line = capsys.readouterr().err.strip().splitlines()[-1]
+    assert "error:" in line and len(line) <= 200
+
+
+def test_an_error_line_about_a_long_path_stays_within_200_characters(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["to-portable", str(tmp_path / ("p" * 500))]) == 1
+    line = capsys.readouterr().err.strip()
+    assert line.startswith("lvjson: ") and len(line) <= 200
 
 
 def test_output_to_a_directory_is_bad_input(

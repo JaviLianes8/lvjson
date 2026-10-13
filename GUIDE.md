@@ -42,7 +42,7 @@ DBL or an integer. Duplicate keys keep the last value, as in `json.loads`. The r
 `dumps(obj, *, nan_inf="extend", indent=None, sort_keys=False, infinity="Infinity",
 number_style="shortest")` serialises `dict`, `list`, `tuple`, `str`, `int`, `float`, `bool`
 and `None` (and their subclasses, by value). Output is compact (`","` and `":"`, as Flatten To
-JSON writes) unless `indent` is a non-negative `int`. Non-ASCII text is written as is, not as
+JSON writes) unless `indent` is an `int` from 0 to 1024 (not a `bool`). Non-ASCII text is written as is, not as
 `\u` escapes; control characters, quotes and backslashes are escaped as `json.dumps` does.
 
 ```pycon
@@ -169,11 +169,11 @@ was not checked against SGL or EXT values.
 | a circular value, a value nested too deeply to encode, an integer too long to write | `LVJSONError` |
 | an object of a non-JSON type, a dict key of an unsupported type, `sort_keys` with keys that do not compare | `TypeError` |
 | an unknown option value | `ValueError` |
-| `indent` that is not `None` or an `int`; a negative `indent` | `TypeError`; `ValueError` |
+| `indent` that is not `None` or an `int` (a `bool` included); an `indent` below 0 or above 1024 | `TypeError`; `ValueError` |
 
 `LVJSONError` subclasses `ValueError`, so code that catches `json`'s `ValueError` keeps
-working. Messages quote at most 40 characters of a value or a type name and stay under 200
-characters in total, whatever the input.
+working. Messages quote at most 40 characters of a value, a type name or any other single word
+(longer ones are cut and end in `...`) and stay under 200 characters in total, whatever the input.
 
 ## Command line
 
@@ -202,10 +202,12 @@ $ echo '{"note": "NaN", "x": 2}' | lvjson check --strict
 | --- | --- |
 | 0 | success |
 | 1 | bad input, a failed conversion, a `--strict` finding, or standard output closed early |
-| 2 | bad usage (unknown command or option) |
+| 2 | bad usage: an unknown command or option, or a bad option value such as `--indent -1` |
 | 130 | interrupted |
 
-Error messages go to standard error, prefixed `lvjson:`, at most 200 characters.
+Error messages go to standard error, prefixed `lvjson:`, in one line of at most 200 characters.
+Usage errors print argparse's usage line and then an error line of at most 200 characters.
+`--indent` takes 0 to 1024.
 
 ## Evidence
 
@@ -249,11 +251,17 @@ than DBL; LabVIEW versions other than 2026; whether any LabVIEW reader accepts `
 - `loads(..., nan_inf="null")` returns `None`, and `nan_inf="reject"` raises, for numbers that
   overflow a double (`1e400`); 0.3.0 returned `inf` in both.
 - `count_nonfinite` accepts `bytes` and `bytearray`, like the other readers.
-- `indent` must be `None` or a non-negative `int` (0.3.0 passed other values to `json`).
+- `indent` must be `None` or an `int` from 0 to 1024, not a `bool` (0.3.0 passed any value to
+  `json`, which accepted strings, `True` and negative numbers and failed on huge ones).
 - An option given as a `str` subclass is checked by its text; anything else that is not one of
-  the listed strings is refused.
+  the listed strings is refused. The message names the type of a value that is not text
+  (`got a value of type int`).
+- A `str` subclass passed as text is read by its plain value, so overridden methods such as
+  `__len__` or `__getitem__` no longer change what is parsed.
 - Error messages are shorter and never quote more than 40 characters of the input. A
-  `bytes` input that is not UTF-8 is reported by offset.
+  `bytes` input that is not UTF-8 is reported by offset. `LVJSONError` reports its module as
+  `lvjson` (it was its private module; the class still lives there, so old pickles load).
 - `has_nonfinite` no longer raises `RecursionError` on circular or very deep values.
 - Command line: a closed output, a missing standard input and an interrupt exit with 1, 1 and
-  130 instead of a traceback; `check` no longer fails with a traceback on very deep input.
+  130 instead of a traceback; `check` no longer fails with a traceback on very deep input;
+  `--indent` outside 0 to 1024 is bad usage (exit 2).

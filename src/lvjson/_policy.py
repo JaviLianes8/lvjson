@@ -59,8 +59,12 @@ def check_output(
     )
 
 
+# The widest indent accepted; wider ones would only make huge output (or fail to allocate).
+MAX_INDENT = 1024
+
+
 def check_indent(indent: int | None) -> int | None:
-    """Validate ``indent`` (``None`` or a non-negative ``int``) and return it as a plain int."""
+    """Validate ``indent`` (``None`` or an ``int`` from 0 to 1024) and return it as a plain int."""
     if indent is None:
         return None
     if not isinstance(indent, int) or isinstance(indent, bool):
@@ -68,4 +72,6 @@ def check_indent(indent: int | None) -> int | None:
     plain = int.__int__(indent)
     if plain < 0:
         raise ValueError("indent must not be negative")
+    if plain > MAX_INDENT:
+        raise ValueError(f"indent must be at most {MAX_INDENT}")
     return plain
