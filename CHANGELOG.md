@@ -34,8 +34,7 @@ Unflatten From JSON reads back from Flatten To JSON output.
   values `ValueError`. 0.3.0 passed them to `json` unchecked.
 - An option given as a `str` subclass (such as a `StrEnum` member) is checked by its text; any
   other value that is not one of the listed strings raises `ValueError`.
-- `count_nonfinite` accepts UTF-8 `bytes` and `bytearray`, like the other readers; every
-  reader accepts `bytearray`.
+- `count_nonfinite` accepts UTF-8 `bytes` and `bytearray`, like the other readers.
 - Values of a `str` or `float` subclass are read and written by their plain value; overridden
   methods do not change the output.
 - Project metadata: `Production/Stable`, Python 3.10 to 3.14, `Source` and `Documentation`

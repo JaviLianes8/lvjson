@@ -34,7 +34,8 @@ with these differences:
 
 Whole numbers come back as `int`, because Flatten To JSON writes a whole double without a
 decimal point (`65536`, `-1`): the JSON text does not say whether the LabVIEW value was a
-DBL or an integer. Duplicate keys keep the last value, as in `json.loads`.
+DBL or an integer. Duplicate keys keep the last value, as in `json.loads`. The return type is
+`Any`, as for `json.loads`: the shape depends on the text.
 
 ## Writing
 
@@ -247,7 +248,7 @@ than DBL; LabVIEW versions other than 2026; whether any LabVIEW reader accepts `
   digits ending in 5 change.
 - `loads(..., nan_inf="null")` returns `None`, and `nan_inf="reject"` raises, for numbers that
   overflow a double (`1e400`); 0.3.0 returned `inf` in both.
-- `count_nonfinite` accepts `bytes` and `bytearray`; every reader accepts `bytearray`.
+- `count_nonfinite` accepts `bytes` and `bytearray`, like the other readers.
 - `indent` must be `None` or a non-negative `int` (0.3.0 passed other values to `json`).
 - An option given as a `str` subclass is checked by its text; anything else that is not one of
   the listed strings is refused.

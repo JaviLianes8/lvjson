@@ -36,6 +36,15 @@ class _Lying(str):
     __hash__ = str.__hash__
 
 
+class _Impostor(str):
+    # Hashes and compares like "null", whatever its text, to slip through a membership test.
+    def __eq__(self, other: object) -> bool:
+        return True
+
+    def __hash__(self) -> int:
+        return hash("null")
+
+
 @pytest.mark.parametrize("reader", _READERS)
 def test_every_reader_takes_str_bytes_and_bytearray(reader: Any) -> None:
     text = '{"x": [NaN, -Inf, 1.5]}'
@@ -73,6 +82,25 @@ def test_options_are_checked_on_their_exact_text() -> None:
         loads("[1]", nan_inf=_Lying("anything"))  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="got a value of type int"):
         dumps(1, number_style=3)  # type: ignore[arg-type]
+
+
+def test_an_option_that_lies_about_equality_is_refused_by_its_text() -> None:
+    for call in (
+        lambda: loads("[NaN]", nan_inf=_Impostor("nope")),  # type: ignore[arg-type]
+        lambda: dumps([1], infinity=_Impostor("x")),  # type: ignore[arg-type]
+    ):
+        with pytest.raises(ValueError, match="must be one of"):
+            call()
+    with pytest.raises(LVJSONError):
+        loads("[NaN]", nan_inf=_Impostor("reject"))  # type: ignore[arg-type]
+
+
+def test_tuples_follow_the_policy_like_lists() -> None:
+    value = {"t": (math.nan, (math.inf, 1.5))}
+    for style in ("shortest", "labview"):
+        assert dumps(value, nan_inf="null", number_style=style) == '{"t":[null,[null,1.5]]}'
+        with pytest.raises(LVJSONError):
+            dumps(value, nan_inf="reject", number_style=style)
 
 
 def test_option_errors_quote_at_most_forty_characters() -> None:

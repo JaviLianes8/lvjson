@@ -20,6 +20,7 @@ from fractions import Fraction
 import pytest
 
 from lvjson import NumberStyle, dumps, loads, to_portable
+from lvjson._digits import _exact
 
 _RNG = random.Random(20261013)
 
@@ -94,6 +95,13 @@ def test_the_corpus_holds_exact_ties_on_both_sides_of_even() -> None:
 def test_labview_style_matches_exact_rational_arithmetic() -> None:
     for value in _CORPUS:
         assert dumps(value, number_style="labview") == _oracle_g20(value), repr(value)
+
+
+def test_the_exact_path_agrees_with_the_oracle_on_every_double() -> None:
+    # The exact path only runs for ties in use; it must still be right for any non-zero double.
+    for value in _CORPUS:
+        if value:
+            assert _exact(value) == _oracle_g20(value), repr(value)
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="ucrtbase.dll is the Windows C runtime")
