@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 import argparse
+import json
 import math
-import sys
 from collections.abc import Sequence
-from pathlib import Path
-from typing import Any, cast
+from typing import NoReturn, cast
 
 from . import __version__
+from ._cli_io import MESSAGE_LIMIT, OutputClosed, emit, read_source, report, write_file
 from ._errors import LVJSONError
-from ._parse import decode_text, loads
 from ._policy import InfSpelling, NanInf, NumberStyle
 from ._serialize import to_labview, to_portable
-from ._tokens import count_nonfinite
+from ._text import decode_text
+from ._tokens import count_nonfinite, expand_inf
 
 _EPILOG = """\
 examples:
@@ -33,29 +33,17 @@ examples:
   # list the non-finite values in a file; exit 1 if there are any
   lvjson check data.json --strict
 
-exit status: 0 on success, 1 on an input, conversion or --strict failure, 2 on bad usage.
+exit status: 0 on success, 1 on an input, conversion or --strict failure or a closed
+output, 2 on bad usage, 130 when interrupted.
 """
 
 
-def _read(source: str | None) -> bytes | str:
-    if source is None or source == "-":
-        buffer = getattr(sys.stdin, "buffer", None)
-        return buffer.read() if buffer is not None else sys.stdin.read()
-    return Path(source).read_bytes()
-
-
-def _write(text: str, target: str | None) -> None:
-    if target is not None and target != "-":
-        Path(target).write_bytes(text.encode("utf-8"))
-        return
-    # Write UTF-8 bytes, so LabVIEW's UTF-8 text survives a narrow console code page.
-    buffer = getattr(sys.stdout, "buffer", None)
-    if buffer is None:
-        sys.stdout.write(text + "\n")
-        return
-    sys.stdout.flush()
-    buffer.write((text + "\n").encode("utf-8"))
-    buffer.flush()
+class _Parser(argparse.ArgumentParser):
+    def error(self, message: str) -> NoReturn:
+        # argparse quotes the offending argument; keep a huge one from flooding the terminal.
+        if len(message) > MESSAGE_LIMIT:
+            message = message[:MESSAGE_LIMIT] + "..."
+        super().error(message)
 
 
 def _add_io(parser: argparse.ArgumentParser) -> None:
@@ -67,8 +55,13 @@ def _add_io(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--sort-keys", action="store_true", help="sort object keys")
 
 
+def _add_policy(parser: argparse.ArgumentParser, default: str, help: str) -> None:
+    choices = ("extend", "null", "reject")
+    parser.add_argument("--nan-inf", choices=choices, default=default, help=help)
+
+
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = _Parser(
         prog="lvjson",
         description="Convert between LabVIEW Flatten To JSON text and portable JSON.",
         epilog=_EPILOG,
@@ -79,21 +72,11 @@ def _build_parser() -> argparse.ArgumentParser:
 
     forward = commands.add_parser("to-portable", help="read LabVIEW JSON, emit strict JSON")
     _add_io(forward)
-    forward.add_argument(
-        "--nan-inf",
-        choices=("extend", "null", "reject"),
-        default="null",
-        help="non-finite values: null (default), keep them (extend) or fail (reject)",
-    )
+    _add_policy(forward, "null", "non-finite values: null (default), keep (extend) or fail")
 
     reverse = commands.add_parser("to-labview", help="read JSON, emit LabVIEW JSON")
     _add_io(reverse)
-    reverse.add_argument(
-        "--nan-inf",
-        choices=("extend", "null", "reject"),
-        default="extend",
-        help="non-finite values: keep them (extend, default), null or fail (reject)",
-    )
+    _add_policy(reverse, "extend", "non-finite values: keep (extend, default), null or fail")
     reverse.add_argument(
         "--infinity",
         choices=("Infinity", "Inf"),
@@ -107,7 +90,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="shortest round-trip digits (default) or LabVIEW's 20-digit form",
     )
 
-    check = commands.add_parser("check", help="parse a file and list its non-finite tokens")
+    check = commands.add_parser("check", help="parse a file and list its non-finite values")
     check.add_argument("file", nargs="?", help="input file, or stdin when omitted or '-'")
     check.add_argument(
         "--strict", action="store_true", help="exit 1 if any non-finite value is present"
@@ -115,57 +98,69 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _nonfinite_values(obj: Any) -> int:
-    if isinstance(obj, float):
-        return 0 if math.isfinite(obj) else 1
-    if isinstance(obj, dict):
-        return sum(_nonfinite_values(value) for value in obj.values())
-    if isinstance(obj, list):
-        return sum(_nonfinite_values(item) for item in obj)
-    return 0
+def _overflows(text: str) -> int:
+    """Count the numbers that are finite in the text but overflow a double (``1e400``)."""
+    found = 0
+
+    def number(token: str) -> float:
+        nonlocal found
+        value = float(token)
+        found += math.isinf(value)
+        return value
+
+    try:
+        json.loads(expand_inf(text), parse_float=number)
+    except ValueError as exc:
+        raise LVJSONError(str(exc)[:MESSAGE_LIMIT]) from None
+    except RecursionError:
+        raise LVJSONError("JSON nesting is too deep to parse") from None
+    return found
 
 
 def _check(args: argparse.Namespace) -> int:
-    text = decode_text(_read(args.file))
-    counts = count_nonfinite(text)
-    # A finite-looking number such as 1e400 overflows to infinity when parsed.
-    overflow = _nonfinite_values(loads(text)) - sum(counts.values())
-    name = args.file if args.file not in (None, "-") else "<stdin>"
-    found = [f"{token} x{count}" for token, count in counts.items()]
-    if overflow > 0:
+    text = decode_text(read_source(args.file))
+    overflow = _overflows(text)
+    found = [f"{token} x{count}" for token, count in count_nonfinite(text).items()]
+    if overflow:
         found.append(f"numbers that overflow a double x{overflow}")
+    name = args.file if args.file not in (None, "-") else "<stdin>"
     if not found:
-        _write(f"{name}: valid, no non-finite tokens (strict JSON)", None)
+        emit(f"{name}: valid, no non-finite tokens (strict JSON)")
         return 0
-    _write(f"{name}: valid, non-finite values: {', '.join(found)}", None)
+    emit(f"{name}: valid, non-finite values: {', '.join(found)}")
     return 1 if args.strict else 0
+
+
+def _convert(args: argparse.Namespace) -> int:
+    source = read_source(args.file)
+    nan_inf = cast(NanInf, args.nan_inf)
+    if args.command == "to-portable":
+        result = to_portable(source, nan_inf=nan_inf, indent=args.indent, sort_keys=args.sort_keys)
+    else:
+        result = to_labview(
+            source,
+            nan_inf=nan_inf,
+            indent=args.indent,
+            sort_keys=args.sort_keys,
+            infinity=cast(InfSpelling, args.infinity),
+            number_style=cast(NumberStyle, args.number_style),
+        )
+    if args.output is not None and args.output != "-":
+        write_file(result, args.output)
+    else:
+        emit(result)
+    return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point for the ``lvjson`` console script. Returns a process exit code."""
     args = _build_parser().parse_args(argv)
     try:
-        if args.command == "check":
-            return _check(args)
-        source = _read(args.file)
-        if args.command == "to-portable":
-            result = to_portable(
-                source,
-                nan_inf=cast(NanInf, args.nan_inf),
-                indent=args.indent,
-                sort_keys=args.sort_keys,
-            )
-        else:
-            result = to_labview(
-                source,
-                nan_inf=cast(NanInf, args.nan_inf),
-                indent=args.indent,
-                sort_keys=args.sort_keys,
-                infinity=cast(InfSpelling, args.infinity),
-                number_style=cast(NumberStyle, args.number_style),
-            )
-        _write(result, args.output)
-    except (LVJSONError, OSError, UnicodeError) as exc:
-        print(f"lvjson: {exc}", file=sys.stderr)
+        return _check(args) if args.command == "check" else _convert(args)
+    except OutputClosed:
         return 1
-    return 0
+    except KeyboardInterrupt:
+        return 130
+    except (LVJSONError, OSError, UnicodeError, ValueError) as exc:
+        report(f"lvjson: {exc}")
+        return 1

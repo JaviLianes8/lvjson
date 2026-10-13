@@ -17,6 +17,7 @@ import math
 from typing import Any
 
 from ._errors import LVJSONError
+from ._text import type_name
 
 
 def format_double(value: float, infinity: str) -> str:
@@ -46,7 +47,7 @@ def _key(key: object, allow_nan: bool) -> str:
         return format_double(key, "Infinity")
     if isinstance(key, int):
         return int.__repr__(key)
-    raise TypeError(f"keys must be str, int, float, bool or None, not {type(key).__name__}")
+    raise TypeError(f"keys must be str, int, float, bool or None, not {type_name(key)}")
 
 
 class _Encoder:
@@ -75,7 +76,7 @@ class _Encoder:
             return self._container(obj, level, "[", "]", self._items)
         if isinstance(obj, dict):
             return self._container(obj, level, "{", "}", self._members)
-        raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+        raise TypeError(f"Object of type {type_name(obj)} is not JSON serializable")
 
     def _items(self, obj: Any, level: int) -> list[str]:
         return [self.encode(item, level) for item in obj]
