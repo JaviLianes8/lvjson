@@ -101,4 +101,4 @@ def test_has_nonfinite_is_false_for_finite_structure() -> None:
 
 
 def test_loads_tolerates_a_byte_order_mark_in_str_input() -> None:
-    assert loads("﻿[1, Inf]") == [1, math.inf]
+    assert loads("\ufeff[1, Inf]") == [1, math.inf]
