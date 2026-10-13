@@ -44,6 +44,8 @@ number_style="shortest")` serialises `dict`, `list`, `tuple`, `str`, `int`, `flo
 and `None` (and their subclasses, by value). Output is compact (`","` and `":"`, as Flatten To
 JSON writes) unless `indent` is an `int` from 0 to 1024 (not a `bool`). Non-ASCII text is written as is, not as
 `\u` escapes; control characters, quotes and backslashes are escaped as `json.dumps` does.
+A lone surrogate code point (from an unpaired `\ud800` escape) is written back as its
+escape, so the output can always be encoded as UTF-8.
 
 ```pycon
 >>> from lvjson import dumps
@@ -262,6 +264,8 @@ than DBL; LabVIEW versions other than 2026; whether any LabVIEW reader accepts `
   `bytes` input that is not UTF-8 is reported by offset. `LVJSONError` reports its module as
   `lvjson` (it was its private module; the class still lives there, so old pickles load).
 - `has_nonfinite` no longer raises `RecursionError` on circular or very deep values.
+- A lone surrogate is written as its `\uXXXX` escape (0.3.0 wrote the raw code point, which
+  cannot be encoded as UTF-8).
 - Command line: a closed output, a missing standard input and an interrupt exit with 1, 1 and
   130 instead of a traceback; `check` no longer fails with a traceback on very deep input;
   `--indent` outside 0 to 1024 is bad usage (exit 2).

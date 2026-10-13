@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from ._errors import LVJSONError
@@ -15,6 +16,13 @@ from ._walk import nonfinite_key, to_null
 
 # Compact separators match LabVIEW's own flattened output and keep the payload small.
 _COMPACT = (",", ":")
+# A lone surrogate cannot be encoded as UTF-8, so it is written as its escape, as json does
+# with ensure_ascii; everything else stays as text.
+_SURROGATE = re.compile("[" + chr(0xD800) + "-" + chr(0xDFFF) + "]")
+
+
+def _escape_surrogates(text: str) -> str:
+    return _SURROGATE.sub(lambda match: f"\\u{ord(match.group(0)):04x}", text)
 
 
 def _encode(
@@ -34,9 +42,10 @@ def _encode(
             raise LVJSONError(NONFINITE_KEY)
         payload = to_null(obj) if nan_inf == "null" else obj
         if number_style == "labview":
-            return encode_labview(
+            text = encode_labview(
                 payload, infinity=infinity, allow_nan=allow_nan, indent=indent, sort_keys=sort_keys
             )
+            return _escape_surrogates(text)
         text = json.dumps(
             payload,
             allow_nan=allow_nan,
@@ -53,6 +62,7 @@ def _encode(
         raise TypeError(shorten(str(exc))) from None
     except RecursionError:
         raise LVJSONError("value is circular or nested too deeply to encode") from None
+    text = _escape_surrogates(text)
     return shorten_infinity(text) if infinity == "Inf" else text
 
 

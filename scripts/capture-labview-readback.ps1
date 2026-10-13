@@ -56,7 +56,13 @@ if ($Mode -eq "ties") {
     )
 }
 
+# The script starts its own LabVIEW and closes exactly that process afterwards, so it refuses to
+# run while another LabVIEW is open (COM would attach to it, and quitting would close it).
+if (Get-Process -Name "LabVIEW" -ErrorAction SilentlyContinue) {
+    throw "LabVIEW is already running; close it first"
+}
 $app = [Activator]::CreateInstance([Type]::GetTypeFromProgID("LabVIEW.Application"))
+$started = @(Get-Process -Name "LabVIEW" -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
 try {
     $vi = Invoke-Com $app "GetVIReference" @($ViPath, "", $false, 0)
     $inp = Invoke-Com $vi "GetControlValue" @("Input")
@@ -96,5 +102,8 @@ try {
     [System.IO.File]::WriteAllText($target, $text + "`n", (New-Object System.Text.UTF8Encoding $false))
     "wrote readback_$Mode.json ($($bytes.Length) bytes) and readback_$Mode.values.json"
 } finally {
-    Invoke-Com $app "Quit" @() | Out-Null
+    try { Invoke-Com $app "Quit" @() | Out-Null } catch { }
+    # Quit does not always end the process; close the LabVIEW this script started, and only it.
+    Start-Sleep -Seconds 5
+    foreach ($id in $started) { Stop-Process -Id $id -Force -ErrorAction SilentlyContinue }
 }

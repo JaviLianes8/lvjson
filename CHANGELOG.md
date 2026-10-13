@@ -22,6 +22,11 @@ Unflatten From JSON reads back from Flatten To JSON output.
 - `loads` with `nan_inf="null"` returns `None`, and with `nan_inf="reject"` raises
   `LVJSONError`, for a number that overflows a double (`1e400`). 0.3.0 returned `inf` in both.
 - `has_nonfinite` no longer raises `RecursionError` on circular or very deep values.
+- A lone surrogate in a string (from an unpaired `\ud800` escape) is written as its escape
+  instead of a raw code point, so every output can be encoded as UTF-8; the command line no
+  longer refuses such input.
+- Under `nan_inf="null"` and `"reject"`, a non-finite float dict key is refused with a short
+  message that never calls the key's `repr`.
 - Error messages never quote more than 40 characters of a value or a type name and stay under
   200 characters; text that is not UTF-8 is reported by byte offset.
 - Command line: a closed standard output exits with 1 quietly, a missing standard input is

@@ -250,3 +250,16 @@ def test_reject_holds_even_when_a_container_changes_during_encoding() -> None:
         dumps(_SwitchingDict(a=1), nan_inf="reject", number_style="labview")
     with pytest.raises(LVJSONError):
         dumps(_SwitchingDict(a=1), nan_inf="reject")
+
+
+@pytest.mark.parametrize("style", ["shortest", "labview"])
+def test_lone_surrogates_are_written_as_escapes_so_output_is_utf8(style: NumberStyle) -> None:
+    backslash = chr(92)
+    lone = '{"' + backslash + 'ud83d": ["' + backslash + 'udc00x", NaN]}'
+    for text in (to_portable(lone), to_labview(lone, number_style=style)):
+        text.encode("utf-8")
+        assert backslash + "ud83d" in text and backslash + "udc00x" in text
+        assert loads(text).keys() == loads(lone).keys()
+    assert dumps(chr(0xD800) + "é", number_style=style) == '"' + backslash + 'ud800é"'
+    pair = '"' + backslash + "ud83d" + backslash + 'ude00"'
+    assert to_portable(pair) == '"' + chr(0x1F600) + '"'
