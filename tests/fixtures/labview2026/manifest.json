@@ -105,8 +105,9 @@
     "script": "scripts/capture-labview-readback.ps1",
     "method": "The same shipped example VI, run unmodified through LabVIEW's ActiveX VI Server under PowerShell 7 with the Data values below. From that one run the script saved the 'JSON' indicator (Flatten To JSON output, re-encoded with code page 1252 as above) and the doubles the example's Unflatten From JSON nodes returned from that same string: 'Unflattened First Data Row' (Data[0]), 'Unflattened Cell' (Data[1][3]) and 'Remaining Unflattened Data' (the eight values of rows 1 and 2, in row order). Every double is stored as its IEEE 754 bit pattern, 16 hex digits, written by the script. LabVIEW was quit after each run.",
     "notes": [
-      "Two runs of each mode returned the same doubles; their JSON strings differed only in Time.",
-      "The input -0.0 is written as -0 and read back by Unflatten From JSON as +0.0 (bits 0000000000000000)."
+      "Two runs of the nonfinite and formats modes returned the same doubles; their JSON strings differed only in Time. The ties mode was run once.",
+      "The input -0.0 is written as -0 and read back by Unflatten From JSON as +0.0 (bits 0000000000000000).",
+      "The ties mode holds doubles whose exact decimal value has 21 significant digits ending in 5. Flatten To JSON rounds that tie away from zero (2**-30 is written 9.3132257461547851563e-10), where Python's '.20g' rounds half to even (...562e-10)."
     ],
     "files": [
       {
@@ -124,6 +125,14 @@
       {
         "file": "readback_formats.values.json",
         "sha256": "157d69eebf3d72045c639379a56cb815e3c3e0b5a056e3228a44b59d2059f43d"
+      },
+      {
+        "file": "readback_ties.json",
+        "sha256": "161a00d00c65846468f6b75b60b620e71eaeb8c0cf4fa0a72421d97af132dd14"
+      },
+      {
+        "file": "readback_ties.values.json",
+        "sha256": "a28b92fe1a5d8832f112fa8f3cd5f0aaca9a412380dcef6e412c30b61593e253"
       }
     ]
   }

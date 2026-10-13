@@ -1,0 +1,29 @@
+{
+  "note": "public references fetched for the source tests",
+  "files": [
+    {
+      "file": "ni-flatten-to-json.json",
+      "url": "https://docs-be.ni.com/api/bundle/labview-api-ref/page/functions/flatten-to-json.html",
+      "fetched": "2026-10-13",
+      "size": 8958,
+      "sha256": "2508e218695ab239f242d26dc3adb57782b617ada5833decf0ae412445ccca87",
+      "licence": "NI documentation, copyright NI; local copy only"
+    },
+    {
+      "file": "ni-unflatten-from-json.json",
+      "url": "https://docs-be.ni.com/api/bundle/labview-api-ref/page/functions/unflatten-from-json.html",
+      "fetched": "2026-10-13",
+      "size": 15254,
+      "sha256": "a32c832028d4dc495d581c0468cf6e1f7db64be40903631b1a5c38f33010a278",
+      "licence": "NI documentation, copyright NI; local copy only"
+    },
+    {
+      "file": "rfc8259.txt",
+      "url": "https://www.rfc-editor.org/rfc/rfc8259.txt",
+      "fetched": "2026-10-13",
+      "size": 28360,
+      "sha256": "61a5378f4255c720beb2a4b4a63b29540147c140f36988bf086291989b4cd2d7",
+      "licence": "IETF Trust, BCP 78 (Revised BSD for code components); local copy only"
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 """Encode Python objects exactly the way LabVIEW's Flatten To JSON formats them.
 
 Captured LabVIEW 2026 output shows DBL values written with 20 significant digits and trailing
-zeros dropped, matching C's ``%.20g`` for every captured value, including where ``%g`` switches
-to exponent form: ``0.1`` becomes ``0.10000000000000000555``, ``1e-05`` becomes
+zeros dropped, in C's ``%.20g`` layout (see :mod:`lvjson._digits`, which also covers exact
+ties): ``0.1`` becomes ``0.10000000000000000555``, ``1e-05`` becomes
 ``1.0000000000000000818e-05``, ``1e20`` becomes ``1e+20``, ``1.0``
 becomes ``1``, ``-0.0`` becomes ``-0`` and ``1e300`` becomes ``1.0000000000000000525e+300``.
 The standard ``json`` encoder hard-wires ``float.__repr__``, so this module walks the value
@@ -16,6 +16,7 @@ import json
 import math
 from typing import Any
 
+from ._digits import format_g20
 from ._errors import LVJSONError
 from ._text import type_name
 
@@ -26,8 +27,7 @@ def format_double(value: float, infinity: str) -> str:
         return "NaN"
     if math.isinf(value):
         return infinity if value > 0 else "-" + infinity
-    # float.__format__ directly, so a subclass overriding __format__ cannot change the digits.
-    return float.__format__(value, ".20g")
+    return format_g20(value)
 
 
 def _key(key: object, allow_nan: bool) -> str:

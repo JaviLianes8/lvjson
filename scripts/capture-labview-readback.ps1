@@ -16,7 +16,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$ViPath,
     [string]$OutDir = ".",
-    [ValidateSet("nonfinite", "formats")][string]$Mode = "nonfinite"
+    [ValidateSet("nonfinite", "formats", "ties")][string]$Mode = "nonfinite"
 )
 $ErrorActionPreference = "Stop"
 $BF = [System.Reflection.BindingFlags]
@@ -42,6 +42,17 @@ if ($Mode -eq "formats") {
         1e-5, 0.0001, 0.00012345, 1e-300,
         1e19, 1e20, 1e21, 9007199254740992.0,
         1.2345678901234568e20, 1.5, -1e-10, 65536.0
+    )
+}
+
+if ($Mode -eq "ties") {
+    # Doubles whose exact decimal value has 21 significant digits ending in 5, so a 20-digit
+    # form is an exact tie: the first six round differently half-to-even and half-up.
+    $values = @(
+        1.862645149230957e-08, 3.3527612686157227e-08, 4.842877388000488e-08,
+        1.862645149230957e-09, 9.313225746154785e-09, -9.313225746154785e-10,
+        1.1175870895385742e-07, 1.1175870895385742e-08, 2.60770320892334e-08,
+        4.0978193283081055e-08, 5.587935447692871e-08, -5.587935447692871e-09
     )
 }
 
