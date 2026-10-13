@@ -158,3 +158,21 @@ double); D01 first failed at import and was re-run as a valid mutation.
 - PyPI 0.3.0 installed, then upgraded in place: tie output, overflow under `null` and `reject`,
   `count_nonfinite(bytes)`, `indent` checks and `has_nonfinite` on a cycle change as CHANGELOG
   1.0.0 says; capture parsing and `to_portable` output are unchanged.
+
+## Independent QA lenses (item 19), first round at 7e0eee4
+
+Each lens was a separate reviewer that read the certification rules and CERT-1.0.md first,
+worked in its own fresh clone, ran things rather than reading, and reported back privately.
+
+| Lens | Verdict | Findings | Fixed in |
+| --- | --- | --- | --- |
+| a. API and docs | FAIL (2 medium, 3 low, 3 info) | type names over 40 characters in default-style messages; a huge `indent` raised `OverflowError` (CLI traceback); CLI usage lines over 200 characters; `--indent -1` exit 1 against `--indent x` exit 2; `indent=True`, `LVJSONError.__module__`, option wording and str-subclass reading missing from the upgrade notes | ea43eb8 |
+| b. Correctness and ground truth | PASS (1 low, 1 info) | 2,811,774 doubles against its own `%.20g` and the C runtime, 0 mismatches; four fresh LabVIEW runs (12 new ties, all away from zero); NI and RFC statements confirmed; 200,000 `to_portable` documents RFC-valid. Low: an escaped lone surrogate was written back raw, so output could not be encoded as UTF-8. Info: the capture script left LabVIEW running after `Quit` | 3a0dc9e |
+| c. Adversarial and robustness | FAIL (2 medium, 2 low) | about 2,000,000 fuzz calls with no other exception, no hang, all scaling linear, threads with altered decimal contexts clean. Found: a non-finite key's `repr` was quoted unbounded (or its exception escaped); huge `indent`; long type names in default-style messages; `reject` bypassed in labview style by a container that changes between scans | ea43eb8, a2f0344 |
+| d. Packaging and real e2e | FAIL (1 medium, 1 low, 1 info) | archives, metadata, six interpreters (2090 passed, 5 skipped each), 624 subprocess CLI cases, sabotage caught, 0.3.0 upgrade matches CHANGELOG. Found the same two message-length promises as lens a | ea43eb8 |
+| e. Contract strength (blind) | FAIL | 89 mutations: 78 killed, 1 equivalent, 10 survivors (bytearray decoding, non-ASCII keys in labview style, `round_trip` pass-through, `to_labview` default, CLI `-`, `.` token boundaries, sorted option list, `emit` flush, message cut on user errors) | 97a9c7c |
+
+Decisions on these findings: `indent` is limited to 0 to 1024 (a documented `ValueError`
+outside it, a usage error on the command line); every message word longer than 40 characters
+is cut; a lone surrogate is written as its `\uXXXX` escape in both number styles, as `json`
+does with `ensure_ascii`; the labview encoder checks the non-finite policy again for each value.
