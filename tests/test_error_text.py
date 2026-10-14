@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 import pytest
 
-from lvjson import LVJSONError, NumberStyle, dumps
+from lvjson import LVJSONError, NumberStyle, dumps, has_nonfinite
 
 _STYLES: tuple[NumberStyle, ...] = ("shortest", "labview")
 
@@ -62,3 +63,18 @@ def test_type_names_with_spaces_are_cut_like_one_word(style: NumberStyle) -> Non
         with pytest.raises(TypeError) as info:
             dumps(value, sort_keys=sort_keys, number_style=style)
         assert "ab " * 15 not in str(info.value) and len(str(info.value)) < 120
+
+
+def test_a_hostile_comparison_message_is_handled_in_linear_time() -> None:
+    message = "'<' not supported between instances of '" + "' and '" * 80_000 + "x"
+    start = time.perf_counter()
+    with pytest.raises(TypeError) as info:
+        dumps(_raising(TypeError(message)))
+    assert time.perf_counter() - start < 1.0
+    assert len(str(info.value)) < 200
+
+
+def test_has_nonfinite_passes_the_values_own_errors_through() -> None:
+    error = RuntimeError("from items")
+    with pytest.raises(RuntimeError, match="from items"):
+        has_nonfinite(_raising(error))

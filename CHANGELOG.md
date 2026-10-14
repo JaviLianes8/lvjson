@@ -29,8 +29,9 @@ Unflatten From JSON reads back from Flatten To JSON output.
   message that never calls the key's `repr`.
 - The non-finite policy scans dicts through `items()`, the view `json` encodes, so a dict
   subclass cannot hide a key or value from it; an exception raised by a value's own methods
-  while encoding becomes a `TypeError` with the original chained; the command line reports
-  running out of memory instead of printing a traceback.
+  while encoding is reported with a bounded message, as `LVJSONError` for a `ValueError`, as
+  `TypeError` for a `TypeError` and as a `TypeError` chained to the original for anything else;
+  the command line reports running out of memory instead of printing a traceback.
 - Error messages never quote more than 40 characters of a value or a type name and stay under
   200 characters; text that is not UTF-8 is reported by byte offset.
 - Command line: a closed standard output exits with 1 quietly, a missing standard input is

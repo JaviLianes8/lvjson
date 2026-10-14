@@ -45,6 +45,8 @@ def error_text(error: BaseException) -> str:
         text = str.__str__(str(BaseException.__str__(error)))
     except Exception:
         return type_name(error)
+    # Only the head can be shown; cutting it first keeps the pattern matching linear.
+    text = text[: _MESSAGE * 4]
     for pattern in _NAMED:
         match = pattern.fullmatch(text)
         if match:
