@@ -99,3 +99,17 @@ def test_check_names_a_file_whose_name_is_not_utf8(
     assert main(["check", str(path)]) == 0
     out = capsysbinary.readouterr().out
     assert out.endswith(b"s" + bytes([92]) + b"udc80.json: valid, non-finite values: NaN x1\n")
+
+
+@pytest.mark.parametrize("code", [0x2028, 0x85, 0x0A, 0x1B])
+def test_check_writes_a_file_name_on_one_line(
+    code: int, tmp_path: Path, capsysbinary: pytest.CaptureFixture[bytes]
+) -> None:
+    path = tmp_path / ("l" + chr(code) + "s.json")
+    try:
+        path.write_text("[1]", encoding="utf-8")
+    except (OSError, UnicodeError):
+        pytest.skip("this file system cannot hold such a name")
+    assert main(["check", str(path)]) == 0
+    out = capsysbinary.readouterr().out.decode("utf-8")
+    assert len(out.splitlines()) == 1 and chr(code) not in out
