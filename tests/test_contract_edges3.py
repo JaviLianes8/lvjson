@@ -1,0 +1,72 @@
+"""Edges left after the fourth mutation round: subclass values, BOMs, stderr, descriptions."""
+
+from __future__ import annotations
+
+import io
+from typing import Any
+
+import pytest
+
+from lvjson import LVJSONError, NumberStyle, count_nonfinite, dumps, loads
+from lvjson._cli import main
+
+_STYLES: tuple[NumberStyle, ...] = ("shortest", "labview")
+
+
+class _Float(float):
+    pass
+
+
+@pytest.mark.parametrize("style", _STYLES)
+def test_float_subclass_nonfinite_values_become_null(style: NumberStyle) -> None:
+    value = [_Float("nan"), _Float("inf"), {"k": (_Float("-inf"),)}]
+    assert dumps(value, nan_inf="null", number_style=style) == '[null,null,{"k":[null]}]'
+
+
+def test_a_byte_order_mark_is_dropped_from_bytearray_too() -> None:
+    data = bytearray(b"\xef\xbb\xbf[1, NaN]")
+    assert loads(data)[0] == 1
+    assert count_nonfinite(data) == {"NaN": 1}
+
+
+def test_a_stderr_without_write_still_gives_exit_1(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("sys.stdin", io.TextIOWrapper(io.BytesIO(b"[1"), encoding="utf-8"))
+    monkeypatch.setattr("sys.stderr", object())
+    assert main(["to-portable"]) == 1
+
+
+@pytest.mark.parametrize(
+    ("value", "shown"),
+    [(None, "got None"), (True, "got True"), ("x" * 38, "got '" + "x" * 38 + "'")],
+)
+def test_option_values_are_described_exactly_at_the_limit(value: Any, shown: str) -> None:
+    with pytest.raises(ValueError) as info:
+        dumps([1], nan_inf=value)
+    assert str(info.value).endswith(shown)
+    with pytest.raises(ValueError) as info:
+        dumps([1], nan_inf="x" * 39)  # type: ignore[arg-type]
+    assert str(info.value).endswith("got '" + "x" * 39 + "...")
+
+
+def _raising(error: BaseException) -> Any:
+    class Items(dict[str, Any]):
+        def items(self) -> Any:
+            raise error
+
+    return Items(a=1)
+
+
+def test_a_message_like_jsons_keeps_its_end_and_its_trailing_text() -> None:
+    long = "Object of type " + "A" * 500 + " is not JSON serializable"
+    with pytest.raises(TypeError) as info:
+        dumps(_raising(TypeError(long)))
+    assert str(info.value) == "Object of type " + "A" * 40 + "... is not JSON serializable"
+    trailing = "Object of type " + "B" * 50 + " is not JSON serializable, and more"
+    with pytest.raises(TypeError) as info:
+        dumps(_raising(TypeError(trailing)))
+    assert str(info.value).endswith(", and more")
+
+
+def test_loads_errors_stay_lvjson_errors() -> None:
+    with pytest.raises(LVJSONError, match="not allowed under nan_inf='reject'"):
+        loads("[NaN]", nan_inf="reject")
