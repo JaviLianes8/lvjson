@@ -36,6 +36,9 @@ _NAMED = (
 )
 
 
+_QUOTED = re.compile(r"'([^']{" + str(_LIMIT + 1) + r",})('|\Z)")
+
+
 def error_text(error: BaseException) -> str:
     """Return the message of ``error`` cut short, without calling an overridden ``__str__``.
 
@@ -56,6 +59,8 @@ def error_text(error: BaseException) -> str:
                     parts[index] = parts[index][:_LIMIT] + "..."
             text = "".join(parts)
             break
+    # Any other quoted name (an unhashable key's type, for example) is cut the same way.
+    text = _QUOTED.sub(lambda match: "'" + match.group(1)[:_LIMIT] + "..." + match.group(2), text)
     return shorten(text)
 
 

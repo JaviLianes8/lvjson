@@ -108,3 +108,21 @@ class _Unprintable:
 def test_an_error_whose_arguments_cannot_be_printed_is_named_by_its_type() -> None:
     with pytest.raises(LVJSONError, match=r"^ValueError$"):
         dumps(_raising(ValueError(_Unprintable())))
+
+
+@pytest.mark.parametrize("style", _STYLES)
+def test_an_unhashable_key_type_is_cut_like_one_word(style: NumberStyle) -> None:
+    key_type: Any = type("key " * 50, (), {})
+    value = {key_type(): 1.0}
+    key_type.__hash__ = None
+    with pytest.raises(TypeError) as info:
+        dumps(value, nan_inf="null", number_style=style)
+    assert "key " * 11 not in str(info.value) and "..." in str(info.value)
+
+
+def test_quoted_names_are_cut_in_linear_time() -> None:
+    message = ("'" + "q" * 39) * 20_000 + "'" + "z" * 100_000
+    start = time.perf_counter()
+    with pytest.raises(TypeError) as info:
+        dumps(_raising(TypeError(message)))
+    assert time.perf_counter() - start < 1.0 and len(str(info.value)) < 200
