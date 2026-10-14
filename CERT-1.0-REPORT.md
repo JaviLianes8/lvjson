@@ -201,3 +201,36 @@ does with `ensure_ascii`; the labview encoder checks the non-finite policy again
 | --- | --- | --- | --- |
 | 1 | 7857de8 | FAIL | items 1 to 5, 7 to 15 PASS, 17 ready; 22 table mutations re-applied (20 killed by the named test, C09 by another, X01 survived at that head), 27 of its own (17 killed, 2 equivalent, 8 survived). Survivors: nested non-finite keys, `--indent 0`, the 200 and 40 character edges and a 203-character error line (all already covered by contracts added after that head), labview-style `int` keys written through `repr`, more than one leading byte order mark accepted. Also: `tests/test_robustness.py` over 200 lines, stale names and counts in this report, process wording. Fixed: `int` key and byte order mark contracts, the test file split (and every test file now held to 200 lines by `test_contract`), the report corrected |
 | 2 | 178b15d | PASS | items 1 to 15 and 18 PASS, 17 ready, 19 pending; the seven earlier findings re-checked and each mutation killed by a named test; 45 mutations at that head: 44 killed, 1 equivalent (`ljust` on a coefficient that always has 20 digits); every file in `src` and `tests` at most 200 lines; the tracked tree and history clean. Info: `annotations` from `__future__` shows in `dir(lvjson)`, outside `__all__` |
+
+## Decisions for the maintainer
+
+- `number_style="labview"` now rounds an exact 20-digit tie away from zero, as LabVIEW 2026's
+  Flatten To JSON was captured doing (twelve tie doubles, all away from zero). 0.3.0 rounded such
+  ties to even, so its "byte for byte" claim was false for them; only doubles whose exact value
+  has 21 significant digits ending in 5 change.
+- LabVIEW's own Unflatten From JSON reads `-0` as `+0.0`. `loads` keeps `-0.0`, the double that
+  was flattened; the guide states the difference.
+- `loads` treats numbers that overflow a double as non-finite under `null` and `reject` (0.3.0
+  returned `inf`).
+- `indent` is limited to 0 to 1024 (a documented `ValueError` outside it; a usage error on the
+  command line). Indented output still grows with indent times depth, as with `json`.
+- Lone surrogates are written as escapes in both number styles, so output is always UTF-8.
+- Error policy: `LVJSONError` for data, `ValueError` for option values, `TypeError` for argument
+  types and unserialisable values. An exception raised by the value's own code while encoding is
+  reported with a bounded message (`ValueError` as `LVJSONError`, `TypeError` as `TypeError`,
+  anything else as a chained `TypeError`); `has_nonfinite` lets it through unchanged.
+- `round_trip` stays as a second name for `to_labview` (same signature and output), as in 0.3.0;
+  removing it would break users, keeping it costs one documented alias.
+- Not verified, and stated so in the guide: whether any LabVIEW reader accepts `Inf`; output with
+  *enable LabVIEW extensions* set to false; SGL and EXT values; other LabVIEW versions. NI's page
+  says Unflatten From JSON refuses `null` unless *default null elements* is set, so text written
+  with `nan_inf="null"` is refused by a node left at its defaults; that was not exercised.
+- The LabVIEW captures (11 files, about 5 KB) ship in the sdist as test fixtures with their
+  provenance manifest; they are the author's own program output from a shipped example VI. The
+  fetched NI pages and RFC 8259 stay local and git-ignored; only their manifest is tracked.
+- GUIDE.md and this report are longer than 200 lines; the 200-line rule is applied to source and
+  test files, and `test_contract` enforces it for both.
+- One review temporarily installed Python launchers and registry entries for the remote user on
+  two build machines and removed them again; nothing of it remains.
+- The README links to GUIDE.md and CHANGELOG.md on `main`, so publish after the merge. Branch
+  history holds intermediate report wording; a squash merge keeps `main` to the final state.
