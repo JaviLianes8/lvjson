@@ -42,6 +42,8 @@ class _Parser(argparse.ArgumentParser):
     def error(self, message: str) -> NoReturn:
         # argparse quotes the offending argument: cut long words, and keep the whole error line
         # ("<prog>: error: <message>") within the limit.
+        # One line: control characters in an argument are shown as escapes, as repr would.
+        message = "".join(char if char >= " " else repr(char)[1:-1] for char in message)
         message = shorten(message)
         room = MESSAGE_LIMIT - len(f"{self.prog}: error: ")
         if len(message) > room:

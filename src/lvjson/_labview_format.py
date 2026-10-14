@@ -62,8 +62,18 @@ class _Encoder:
         self.sort_keys = sort_keys
         self.key_sep = ":" if indent is None else ": "
         self.active: set[int] = set()
+        # Every piece goes into one list, joined once: nesting never copies text again.
+        self.out: list[str] = []
 
-    def encode(self, obj: Any, level: int) -> str:
+    def write(self, obj: Any, level: int) -> None:
+        if isinstance(obj, (list, tuple)):
+            self._container(obj, level, "[", "]", members=False)
+        elif isinstance(obj, dict):
+            self._container(obj, level, "{", "}", members=True)
+        else:
+            self.out.append(self._scalar(obj))
+
+    def _scalar(self, obj: Any) -> str:
         if obj is None:
             return "null"
         if obj is True:
@@ -80,42 +90,39 @@ class _Encoder:
             if not self.allow_nan and not math.isfinite(obj):
                 raise LVJSONError(NONFINITE_VALUE)
             return format_double(obj, self.infinity)
-        if isinstance(obj, (list, tuple)):
-            return self._container(obj, level, "[", "]", self._items)
-        if isinstance(obj, dict):
-            return self._container(obj, level, "{", "}", self._members)
         raise TypeError(f"Object of type {type_name(obj)} is not JSON serializable")
 
-    def _items(self, obj: Any, level: int) -> list[str]:
-        return [self.encode(item, level) for item in obj]
-
-    def _members(self, obj: Any, level: int) -> list[str]:
+    def _members(self, obj: Any) -> list[tuple[str, Any]]:
         items = obj.items()
         if self.sort_keys:
             # Sort on the original keys before coercion, exactly as json.dumps does.
             items = sorted(items, key=lambda pair: pair[0])
-        pairs = [(_key(key, self.allow_nan), value) for key, value in items]
-        return [
-            json.dumps(key, ensure_ascii=False) + self.key_sep + self.encode(value, level)
-            for key, value in pairs
-        ]
+        return [(_key(key, self.allow_nan), value) for key, value in items]
 
-    def _container(self, obj: Any, level: int, open_: str, close: str, parts: Any) -> str:
+    def _container(self, obj: Any, level: int, open_: str, close: str, members: bool) -> None:
         marker = id(obj)
         if marker in self.active:
             raise ValueError("Circular reference detected")
         self.active.add(marker)
         try:
-            chunks: list[str] = parts(obj, level + 1)
+            entries: list[Any] = self._members(obj) if members else list(obj)
+            inner = outer = ""
+            if self.indent is not None:
+                inner = "\n" + " " * (self.indent * (level + 1))
+                outer = "\n" + " " * (self.indent * level)
+            out = self.out
+            out.append(open_)
+            for index, entry in enumerate(entries):
+                out.append(("," if index else "") + inner)
+                if members:
+                    out.append(json.dumps(entry[0], ensure_ascii=False) + self.key_sep)
+                    entry = entry[1]
+                self.write(entry, level + 1)
+            if entries:
+                out.append(outer)
+            out.append(close)
         finally:
             self.active.discard(marker)
-        if not chunks:
-            return open_ + close
-        if self.indent is None:
-            return open_ + ",".join(chunks) + close
-        inner = "\n" + " " * (self.indent * (level + 1))
-        outer = "\n" + " " * (self.indent * level)
-        return open_ + inner + ("," + inner).join(chunks) + outer + close
 
 
 def encode_labview(
@@ -126,4 +133,6 @@ def encode_labview(
     The caller applies the non-finite policy to values first; ``allow_nan`` only decides
     whether a non-finite dict key is written (as a string) or refused.
     """
-    return _Encoder(infinity, allow_nan, indent, sort_keys).encode(obj, 0)
+    encoder = _Encoder(infinity, allow_nan, indent, sort_keys)
+    encoder.write(obj, 0)
+    return "".join(encoder.out)

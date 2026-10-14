@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import time
 from typing import Any
 
 import pytest
@@ -70,3 +71,23 @@ def test_a_message_like_jsons_keeps_its_end_and_its_trailing_text() -> None:
 def test_loads_errors_stay_lvjson_errors() -> None:
     with pytest.raises(LVJSONError, match="not allowed under nan_inf='reject'"):
         loads("[NaN]", nan_inf="reject")
+
+
+def test_labview_style_keeps_pace_with_the_shortest_style_on_deep_indented_values() -> None:
+    value: Any = list(range(2000))
+    for _ in range(300):
+        value = [value]
+    timings = []
+    for style in _STYLES:
+        start = time.perf_counter()
+        dumps(value, number_style=style, indent=64)
+        timings.append(time.perf_counter() - start)
+    shortest, labview = timings
+    assert labview < 4 * shortest + 0.5, timings
+
+
+def test_a_usage_error_stays_on_one_line(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit):
+        main(["to-portable", "a", "b" + chr(10) + "c"])
+    err = capsys.readouterr().err.splitlines()
+    assert err[-1].endswith("unrecognized arguments: b" + chr(92) + "nc")
