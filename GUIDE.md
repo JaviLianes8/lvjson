@@ -45,7 +45,9 @@ and `None` (and their subclasses, by value). Output is compact (`","` and `":"`,
 JSON writes) unless `indent` is an `int` from 0 to 1024 (not a `bool`). Non-ASCII text is written as is, not as
 `\u` escapes; control characters, quotes and backslashes are escaped as `json.dumps` does.
 A lone surrogate code point (from an unpaired `\ud800` escape) is written back as its
-escape, so the output can always be encoded as UTF-8.
+escape, so the output can always be encoded as UTF-8. A high and a low surrogate that sit next to
+each other in a `str` are written as two escapes and read back as one character, as with
+`json.dumps`: JSON text cannot keep them apart.
 
 ```pycon
 >>> from lvjson import dumps
