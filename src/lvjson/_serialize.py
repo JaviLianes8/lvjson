@@ -21,6 +21,11 @@ _COMPACT = (",", ":")
 _SURROGATE = re.compile("[" + chr(0xD800) + "-" + chr(0xDFFF) + "]")
 
 
+def _refuse(obj: object) -> object:
+    # json's own message names the type through its metaclass; name it the same way as elsewhere.
+    raise TypeError(f"Object of type {type_name(obj)} is not JSON serializable")
+
+
 def _escape_surrogates(text: str) -> str:
     return _SURROGATE.sub(lambda match: f"\\u{ord(match.group(0)):04x}", text)
 
@@ -53,6 +58,7 @@ def _encode(
             separators=None if indent is not None else _COMPACT,
             sort_keys=sort_keys,
             ensure_ascii=False,
+            default=_refuse,
         )
     except ValueError as exc:
         # json's own errors, this module's LVJSONError, or a ValueError from the value's own code.

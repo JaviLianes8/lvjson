@@ -78,3 +78,33 @@ def test_has_nonfinite_passes_the_values_own_errors_through() -> None:
     error = RuntimeError("from items")
     with pytest.raises(RuntimeError, match="from items"):
         has_nonfinite(_raising(error))
+
+
+def test_type_names_are_cut_exactly_at_40_characters() -> None:
+    for length, cut in ((40, False), (41, True)):
+        name = "Q" * length
+        with pytest.raises(TypeError) as info:
+            dumps([type(name, (), {})()])
+        shown = "Q" * 40 + ("..." if cut else " ")
+        assert shown in str(info.value)
+
+
+def test_both_names_of_a_comparison_message_are_cut() -> None:
+    spaced: Any = type("ab " * 60, (), {})
+    with pytest.raises(TypeError) as info:
+        dumps({"a": 1, spaced(): 2}, sort_keys=True)
+    message = str(info.value)
+    assert "ab " * 14 not in message and message.count("...") >= 1
+    with pytest.raises(TypeError) as info:
+        dumps({spaced(): 1, "a": 2}, sort_keys=True)
+    assert "ab " * 14 not in str(info.value)
+
+
+class _Unprintable:
+    def __str__(self) -> str:
+        raise RuntimeError("no text")
+
+
+def test_an_error_whose_arguments_cannot_be_printed_is_named_by_its_type() -> None:
+    with pytest.raises(LVJSONError, match=r"^ValueError$"):
+        dumps(_raising(ValueError(_Unprintable())))
