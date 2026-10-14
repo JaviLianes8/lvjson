@@ -10,7 +10,7 @@ from ._errors import LVJSONError
 from ._labview_format import NONFINITE_KEY, encode_labview
 from ._parse import has_nonfinite, loads
 from ._policy import InfSpelling, NanInf, NumberStyle, check, check_indent, check_output
-from ._text import shorten
+from ._text import shorten, type_name
 from ._tokens import shorten_infinity
 from ._walk import nonfinite_key, to_null
 
@@ -62,6 +62,14 @@ def _encode(
         raise TypeError(shorten(str(exc))) from None
     except RecursionError:
         raise LVJSONError("value is circular or nested too deeply to encode") from None
+    except MemoryError:
+        raise
+    except Exception as exc:
+        # Raised by the value's own methods (a __repr__ the json module calls for a message, an
+        # __iter__ or items() that fails): reported as a TypeError, the original chained.
+        raise TypeError(
+            f"value could not be encoded: its own code raised {type_name(exc)}"
+        ) from exc
     text = _escape_surrogates(text)
     return shorten_infinity(text) if infinity == "Inf" else text
 

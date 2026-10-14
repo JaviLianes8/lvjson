@@ -27,9 +27,11 @@ def nonfinite_key(obj: Any) -> bool:
         if isinstance(item, (dict, list, tuple)) and id(item) not in seen:
             seen.add(id(item))
             if isinstance(item, dict):
-                if any(isinstance(key, float) and not math.isfinite(key) for key in item):
+                # items(), the view json encodes, so a subclass cannot hide a key from this scan.
+                pairs = list(item.items())
+                if any(isinstance(key, float) and not math.isfinite(key) for key, _ in pairs):
                     return True
-                pending.extend(item.values())
+                pending.extend(value for _, value in pairs)
             else:
                 pending.extend(item)
     return False

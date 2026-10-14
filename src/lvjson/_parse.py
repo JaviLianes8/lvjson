@@ -109,5 +109,9 @@ def has_nonfinite(obj: Any) -> bool:
             if id(item) in seen:
                 continue
             seen.add(id(item))
-            pending.extend(item.values() if isinstance(item, dict) else item)
+            # items(), the view json encodes, so a subclass cannot hide a value from this scan.
+            if isinstance(item, dict):
+                pending.extend(value for _, value in item.items())
+            else:
+                pending.extend(item)
     return False

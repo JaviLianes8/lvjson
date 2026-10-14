@@ -42,7 +42,9 @@ DBL or an integer. Duplicate keys keep the last value, as in `json.loads`. The r
 `dumps(obj, *, nan_inf="extend", indent=None, sort_keys=False, infinity="Infinity",
 number_style="shortest")` serialises `dict`, `list`, `tuple`, `str`, `int`, `float`, `bool`
 and `None` (and their subclasses, by value). Output is compact (`","` and `":"`, as Flatten To
-JSON writes) unless `indent` is an `int` from 0 to 1024 (not a `bool`). Non-ASCII text is written as is, not as
+JSON writes) unless `indent` is an `int` from 0 to 1024 (not a `bool`). Indented output grows with
+indent times nesting depth on every line, as with `json.dumps`: a 2 KB document nested 1,000 deep
+becomes about a gigabyte at `indent=1024`. Non-ASCII text is written as is, not as
 `\u` escapes; control characters, quotes and backslashes are escaped as `json.dumps` does.
 A lone surrogate code point (from an unpaired `\ud800` escape) is written back as its
 escape, so the output can always be encoded as UTF-8. A high and a low surrogate that sit next to
@@ -172,6 +174,7 @@ was not checked against SGL or EXT values.
 | a non-finite value under `nan_inf="reject"`, or a non-finite float key under `"null"` or `"reject"` | `LVJSONError` |
 | a circular value, a value nested too deeply to encode, an integer too long to write | `LVJSONError` |
 | an object of a non-JSON type, a dict key of an unsupported type, `sort_keys` with keys that do not compare | `TypeError` |
+| an exception raised by the value's own methods while encoding (a failing `__iter__`, `items()` or `__repr__`); the original is chained | `TypeError` |
 | an unknown option value | `ValueError` |
 | `indent` that is not `None` or an `int` (a `bool` included); an `indent` below 0 or above 1024 | `TypeError`; `ValueError` |
 

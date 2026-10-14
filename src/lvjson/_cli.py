@@ -176,6 +176,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
     except KeyboardInterrupt:
         return 130
+    except MemoryError:
+        report("lvjson: out of memory (a deeply nested value with a wide --indent grows fast)")
+        return 1
     except (LVJSONError, OSError, UnicodeError, ValueError) as exc:
         report(f"lvjson: {shorten(str(exc))}")
         return 1
