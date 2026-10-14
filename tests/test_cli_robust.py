@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import io
 from pathlib import Path
 from typing import Any
@@ -160,3 +161,20 @@ def test_dash_output_means_standard_output(
     _stdin(monkeypatch, b"[Inf]")
     assert main(["to-labview", "-o", "-", "--infinity", "Inf"]) == 0
     assert capsysbinary.readouterr().out == b"[Inf]\n"
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["to-portable", "ab " * 100],
+        ["to-portable", "--nan-inf", "x " * 300],
+        ["check", "zz " * 200],
+    ],
+)
+def test_error_lines_of_many_short_words_stay_within_200_characters(
+    args: list[str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    with contextlib.suppress(SystemExit):
+        main(args)
+    for line in capsys.readouterr().err.splitlines():
+        assert len(line) <= 200, len(line)
