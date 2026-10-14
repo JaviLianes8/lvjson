@@ -53,11 +53,12 @@ def test_errors_raised_by_the_value_keep_the_message_bounds(style: NumberStyle) 
 @pytest.mark.parametrize("style", _STYLES)
 def test_type_names_with_spaces_are_cut_like_one_word(style: NumberStyle) -> None:
     spaced: Any = type("ab " * 60, (), {})
-    for call in (
-        lambda: dumps([spaced()], number_style=style),
-        lambda: dumps({spaced(): 1}, number_style=style),
-        lambda: dumps({"a": 1, spaced(): 2}, sort_keys=True, number_style=style),
-    ):
+    values: list[tuple[Any, bool]] = [
+        ([spaced()], False),
+        ({spaced(): 1}, False),
+        ({"a": 1, spaced(): 2}, True),
+    ]
+    for value, sort_keys in values:
         with pytest.raises(TypeError) as info:
-            call()
+            dumps(value, sort_keys=sort_keys, number_style=style)
         assert "ab " * 15 not in str(info.value) and len(str(info.value)) < 120
