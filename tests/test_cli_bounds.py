@@ -51,3 +51,37 @@ def test_text_written_before_emit_comes_out_first(monkeypatch: pytest.MonkeyPatc
     stream.write("before|")
     emit("[1]")
     assert raw.getvalue() == b"before|[1]\n"
+
+
+class _Narrow(io.TextIOWrapper):
+    # A standard error that can only write Latin-1, as a Windows pipe in cp1252 does.
+    def __init__(self) -> None:
+        super().__init__(io.BytesIO(), encoding="cp1252", errors="backslashreplace")
+
+
+@pytest.mark.parametrize("char", [chr(0x4E2D), chr(0x1F600)])
+@pytest.mark.parametrize("words", [1, 3])
+def test_error_lines_are_measured_as_a_narrow_stderr_writes_them(
+    char: str, words: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stream = _Narrow()
+    monkeypatch.setattr("sys.stderr", stream)
+    report("lvjson: " + " ".join([char * (60 if words == 1 else 39)] * words))
+    stream.flush()
+    raw = stream.buffer
+    assert isinstance(raw, io.BytesIO)
+    lines = raw.getvalue().decode("cp1252").splitlines()
+    assert len(lines) == 1 and len(lines[0]) <= 200
+
+
+def test_usage_errors_are_measured_as_a_narrow_stderr_writes_them(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stream = _Narrow()
+    monkeypatch.setattr("sys.stderr", stream)
+    with pytest.raises(SystemExit):
+        main(["to-labview", "--infinity", chr(0x4E2D) * 60])
+    stream.flush()
+    raw = stream.buffer
+    assert isinstance(raw, io.BytesIO)
+    assert all(len(line) <= 200 for line in raw.getvalue().decode("cp1252").splitlines())

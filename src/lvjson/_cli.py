@@ -9,7 +9,15 @@ from collections.abc import Sequence
 from typing import NoReturn, cast
 
 from . import __version__
-from ._cli_io import MESSAGE_LIMIT, OutputClosed, emit, read_source, report, write_file
+from ._cli_io import (
+    MESSAGE_LIMIT,
+    OutputClosed,
+    as_written,
+    emit,
+    read_source,
+    report,
+    write_file,
+)
 from ._errors import LVJSONError
 from ._policy import MAX_INDENT, InfSpelling, NanInf, NumberStyle
 from ._serialize import to_labview, to_portable
@@ -42,9 +50,8 @@ class _Parser(argparse.ArgumentParser):
     def error(self, message: str) -> NoReturn:
         # argparse quotes the offending argument: cut long words, and keep the whole error line
         # ("<prog>: error: <message>") within the limit.
-        # One line: characters that are not printable (line breaks, controls) become escapes.
-        message = "".join(char if char.isprintable() else repr(char)[1:-1] for char in message)
-        message = shorten(message)
+        # One line, measured as written: unprintable and unencodable characters become escapes.
+        message = shorten(as_written(message))
         room = MESSAGE_LIMIT - len(f"{self.prog}: error: ")
         if len(message) > room:
             message = message[: max(room - 3, 0)] + "..."

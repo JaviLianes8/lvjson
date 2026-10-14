@@ -53,8 +53,22 @@ def emit(text: str) -> None:
         raise OutputClosed from exc
 
 
+def as_written(message: str) -> str:
+    """Return ``message`` as standard error will show it: one line, unencodable characters escaped.
+
+    The length limit is then measured on what really reaches the terminal.
+    """
+    message = "".join(char if char.isprintable() else repr(char)[1:-1] for char in message)
+    encoding = getattr(sys.stderr, "encoding", None) or "utf-8"
+    try:
+        return message.encode(encoding, "backslashreplace").decode(encoding)
+    except (LookupError, UnicodeError):
+        return message.encode("ascii", "backslashreplace").decode("ascii")
+
+
 def report(message: str) -> None:
     """Print an error message to standard error, cut short, never raising."""
+    message = as_written(message)
     if len(message) > MESSAGE_LIMIT:
         message = message[: MESSAGE_LIMIT - 3] + "..."
     try:
