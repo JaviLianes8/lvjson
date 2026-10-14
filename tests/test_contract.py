@@ -57,7 +57,8 @@ def test_package_has_no_runtime_dependencies() -> None:
 
 
 def test_source_files_stay_short() -> None:
-    for path in (_ROOT / "src" / "lvjson").glob("*.py"):
+    paths = [*(_ROOT / "src" / "lvjson").glob("*.py"), *(_ROOT / "tests").glob("*.py")]
+    for path in paths:
         lines = path.read_text(encoding="utf-8").count("\n")
         assert lines <= 200, f"{path.name} has {lines} lines"
 

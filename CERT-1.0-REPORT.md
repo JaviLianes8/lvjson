@@ -11,7 +11,7 @@ Progress:
 - [x] Docs: README, GUIDE, CHANGELOG (items 11, 12)
 - [x] Packaging, e2e and upgrade from PyPI 0.3.0 (items 8, 10, 13, 14)
 - [ ] Independent reviewer and five QA lenses report PASS (items 16, 19)
-- [ ] Gates (item 15)
+- [x] Gates (item 15)
 - [ ] PR and trace guard CLEAN (item 17); merge and publish left to the maintainer
 
 ## Baseline on 0.3.0 (before any change)
@@ -79,7 +79,7 @@ in the guide.
 
 ## Author mutation round (item 18)
 
-Each mutation was applied alone to a fresh clone on another machine, `__pycache__` purged, the
+Each mutation was applied alone to a clean copy of the branch, `__pycache__` purged, the
 suite run with `-x`, `PYTHONDONTWRITEBYTECODE=1` and no cache, then the file restored; the
 baseline was green before and after. 55 mutations: 50 killed at once; D04, D07, S03 and Y03
 survived and were killed by new contracts (D04 and D07 sit on a branch only exact ties reach,
@@ -125,10 +125,10 @@ double); D01 first failed at import and was re-run as a valid mutation.
 | S05 | Inf spelling ignored in shortest style | `_serialize.py` | killed | `tests/test_cli_robust.py::test_dash_output_means_standard_output` |
 | S06 | shortest style escapes non-ASCII | `_serialize.py` | killed | `tests/test_cli.py::test_stdin_is_decoded_as_utf8_whatever_the_console_encoding` |
 | S07 | unserialisable object gives LVJSONError | `_serialize.py` | killed | `tests/test_labview_format.py::test_both_styles_sort_on_the_original_keys[shortest]` |
-| Y01 | indent -1 accepted | `_policy.py` | killed | `tests/test_robustness.py::test_indent_must_be_a_non_negative_int` |
-| Y02 | bool accepted as indent | `_policy.py` | killed | `tests/test_robustness.py::test_indent_must_be_a_non_negative_int` |
+| Y01 | indent -1 accepted | `_policy.py` | killed | `tests/test_robustness.py::test_indent_must_be_a_non_negative_int` (now `test_indent_must_be_an_int_from_0_to_1024`) |
+| Y02 | bool accepted as indent | `_policy.py` | killed | `tests/test_robustness.py::test_indent_must_be_a_non_negative_int` (now `test_indent_must_be_an_int_from_0_to_1024`) |
 | Y03 | str subclass compared with its own __eq__ | `_policy.py` | survived, then killed | `tests/test_robustness.py::test_an_option_that_lies_about_equality_is_refused_by_its_text` |
-| X01 | message limit 400 | `_text.py` | killed | `tests/test_robustness.py::test_option_errors_quote_at_most_forty_characters` |
+| X01 | values and type names quoted up to 400 characters (`_LIMIT`) | `_text.py` | killed | `tests/test_robustness.py::test_option_errors_quote_at_most_forty_characters` |
 | X02 | BOM kept in str input | `_text.py` | killed | `tests/test_parse.py::test_loads_tolerates_a_byte_order_mark_in_str_input` |
 | X03 | BOM kept in bytes input | `_text.py` | killed | `tests/test_docs.py::test_module_doctests_pass[lvjson._text]` |
 | X04 | offset off by one | `_text.py` | killed | `tests/test_robustness.py::test_undecodable_bytes_name_the_offset_not_the_content[loads]` |
@@ -151,7 +151,7 @@ double); D01 first failed at import and was re-run as a valid mutation.
   LabVIEW captures and the sources manifest, README, GUIDE, CHANGELOG, LICENSE, pyproject and
   the `.gitignore` hatchling adds; no fetched NI or RFC copies, no scripts, no report.
 - The wheel in a fresh venv on 3.10.19, 3.11.5, 3.12.12, 3.13.2, 3.14.2 and 3.14.2t (every
-  interpreter on this PC), with the suite run from the extracted sdist with `src` removed (it
+  supported interpreter available), with the suite run from the extracted sdist with `src` removed (it
   imports the installed wheel and drives its console script): 2087 passed, 5 skipped (the
   sources module) on each.
 - A strict consumer (`mypy --strict`) type-checks against the installed wheel on 3.10 and 3.14.
@@ -161,8 +161,8 @@ double); D01 first failed at import and was re-run as a valid mutation.
 
 ## Independent QA lenses (item 19), first round at 7e0eee4
 
-Each lens was a separate reviewer that read the certification rules and CERT-1.0.md first,
-worked in its own fresh clone, ran things rather than reading, and reported back privately.
+Each lens is an independent review of the branch against CERT-1.0.md, done by running the
+library rather than reading it.
 
 | Lens | Verdict | Findings | Fixed in |
 | --- | --- | --- | --- |
@@ -186,3 +186,9 @@ does with `ensure_ascii`; the labview encoder checks the non-finite policy again
 | c | 2 (new reviewer) | 7857de8 | FAIL | the four earlier findings fixed; about 1.08 million fuzz cases, 219 scaling pairs (all linear), threads with altered decimal contexts clean. New: a raising `__repr__` could still escape in the shortest style (on 3.14 `json` calls `repr(key)` for its error note; a dict subclass could hide a key or value from the policy scan); `indent` times depth output growth. Fixed in 9315b96 and 78cc79c: scans read `items()`, a failure of the value's own code becomes a chained `TypeError`, the growth is documented and the command line reports running out of memory |
 | d | 2 (new reviewer) | 7857de8 | PASS | both earlier findings fixed; archives and metadata, six interpreters (2118 passed, 5 skipped each), 55 subprocess checks per interpreter including a real interrupt (exit 130), six of seven sabotages caught, 0.3.0 upgrade matches CHANGELOG. Low: no test guarded the 200-character line against messages of many short words; added |
 | e | 2 (new reviewer, blind) | 7857de8 | FAIL | the ten earlier survivors killed; 85 new mutations: 66 killed, 1 equivalent (`Infinity|Inf` order), 18 survivors (exact message bounds, nested and tuple-held and infinite non-finite keys, an `int` subclass as `indent`, CLI `--indent 0`, word cutting in usage errors, a closed stream without a buffer, the circular message, two hangs only a timeout caught). Contracts added in `tests/test_contract_bounds.py` (9315b96, 78cc79c); each survivor re-applied and killed by a named test |
+
+## Independent reviewer (item 16)
+
+| Review | Head | Verdict | Findings and outcome |
+| --- | --- | --- | --- |
+| 1 | 7857de8 | FAIL | items 1 to 5, 7 to 15 PASS, 17 ready; 22 table mutations re-applied (20 killed by the named test, C09 by another, X01 survived at that head), 27 of its own (17 killed, 2 equivalent, 8 survived). Survivors: nested non-finite keys, `--indent 0`, the 200 and 40 character edges and a 203-character error line (all already covered by contracts added after that head), labview-style `int` keys written through `repr`, more than one leading byte order mark accepted. Also: `tests/test_robustness.py` over 200 lines, stale names and counts in this report, process wording. Fixed: `int` key and byte order mark contracts, the test file split (and every test file now held to 200 lines by `test_contract`), the report corrected |
