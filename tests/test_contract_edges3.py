@@ -91,3 +91,13 @@ def test_a_usage_error_stays_on_one_line(capsys: pytest.CaptureFixture[str]) -> 
         main(["to-portable", "a", "b" + chr(10) + "c"])
     err = capsys.readouterr().err.splitlines()
     assert err[-1].endswith("unrecognized arguments: b" + chr(92) + "nc")
+
+
+@pytest.mark.parametrize("code", [0x0A, 0x7F, 0x85, 0x2028, 0x2029])
+def test_a_usage_error_escapes_every_character_that_is_not_printable(
+    code: int, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit):
+        main(["to-portable", "a", "b" + chr(code) + "c"])
+    last = capsys.readouterr().err.splitlines()[-1]
+    assert last.endswith("unrecognized arguments: b" + repr(chr(code))[1:-1] + "c")

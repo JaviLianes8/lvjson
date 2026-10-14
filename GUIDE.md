@@ -186,7 +186,10 @@ working. Messages quote at most 40 characters of a value, a type name or any oth
 spaces) and stay under 200 characters in total, whatever the input. An overridden `__str__` of an
 exception is never called. `has_nonfinite` is a plain predicate: an exception raised by the
 value's own methods (a failing `items()` or `__iter__`) passes through it unchanged. A value nested
-too deeply to encode gives `LVJSONError`, and `MemoryError` always passes through unchanged.
+too deeply to encode gives `LVJSONError`, and `MemoryError` always passes through unchanged. How
+deep a value can nest depends on the path, as Python's recursion limit allows: about 500
+levels in the labview style, about 1,000 with `nan_inf="null"` (the `to_portable` default), and
+the `json` module's own limit otherwise; LabVIEW data does not come close.
 
 ## Command line
 
