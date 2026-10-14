@@ -235,7 +235,6 @@ does with `ensure_ascii`; the labview encoder checks the non-finite policy again
   fetched NI pages and RFC 8259 stay local and git-ignored; only their manifest is tracked.
 - GUIDE.md and this report are longer than 200 lines; the 200-line rule is applied to source and
   test files, and `test_contract` enforces it for both.
-- One review temporarily installed Python launchers and registry entries for the remote user on
-  two build machines and removed them again; nothing of it remains.
 - The README links to GUIDE.md and CHANGELOG.md on `main`, so publish after the merge. Branch
   history holds intermediate report wording; a squash merge keeps `main` to the final state.
+| 3 | 2f6c08b | FAIL | items 1 to 5, 7 to 15 PASS, 17 ready, 19 PASS per the lens table; gates alone, sdist suite against the installed wheel (2211 passed, 7 skipped), 13 table mutations re-applied and killed, 32 of its own: 26 killed, 2 equivalent, 4 survived (a `str` subclass in labview style written through `str()`, `--indent 1024` refused, the quoted-name cut one character late, a stderr without an encoding treated as ASCII); one sentence in this report described the review process. Fixed: contracts in `tests/test_contract_final.py`, each of the four re-applied and killed; the sentence removed |
