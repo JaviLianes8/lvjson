@@ -221,7 +221,9 @@ $ echo '{"note": "NaN", "x": 2}' | lvjson check --strict
 | 2 | bad usage: an unknown command or option, or a bad option value such as `--indent -1` |
 | 130 | interrupted |
 
-Error messages go to standard error, prefixed `lvjson:`, in one line of at most 200 characters.
+Error messages go to standard error, prefixed `lvjson:`, in one line of at most 200 characters,
+counted as written: characters that are not printable, or that standard error's encoding cannot
+show, are written as escapes.
 Usage errors print argparse's usage line and then an error line of at most 200 characters.
 `--indent` takes 0 to 1024.
 
