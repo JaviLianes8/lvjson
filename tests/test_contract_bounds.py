@@ -86,22 +86,22 @@ def test_the_labview_encoder_checks_every_key_it_writes(key: float) -> None:
             dumps(_HiddenKeys({key: 1}), nan_inf=policy, number_style="labview")
 
 
-class _Switching(dict[str, Any]):
+class _Flip(list[Any]):
+    # Finite values for the two policy scans, then a non-finite one for the encoder.
     def __init__(self, value: float) -> None:
-        super().__init__(a=1)
+        super().__init__([1.0])
         self.value = value
+        self.passes = 0
 
-    def items(self) -> Any:
-        return [("x", self.value)]
-
-    def values(self) -> Any:
-        return []
+    def __iter__(self) -> Iterator[Any]:
+        self.passes += 1
+        return iter([1.0] if self.passes <= 2 else [self.value])
 
 
 @pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
 def test_the_labview_encoder_checks_every_value_it_writes(value: float) -> None:
-    with pytest.raises(LVJSONError):
-        dumps(_Switching(value), nan_inf="reject", number_style="labview")
+    with pytest.raises(LVJSONError, match="only allowed under nan_inf='extend'"):
+        dumps([_Flip(value)], nan_inf="reject", number_style="labview")
 
 
 class _Wide(int):

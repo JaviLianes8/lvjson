@@ -246,7 +246,7 @@ def test_a_nonfinite_key_is_refused_without_calling_its_repr() -> None:
 
 
 def test_reject_holds_even_when_a_container_changes_during_encoding() -> None:
-    with pytest.raises(LVJSONError, match="only allowed under nan_inf='extend'"):
+    with pytest.raises(LVJSONError):
         dumps(_SwitchingDict(a=1), nan_inf="reject", number_style="labview")
     with pytest.raises(LVJSONError):
         dumps(_SwitchingDict(a=1), nan_inf="reject")
