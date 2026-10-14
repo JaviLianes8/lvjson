@@ -35,7 +35,7 @@ Progress:
 | 15 | Gates exit 0 alone | PASS | `ruff format --check .`, `ruff check .`, `mypy --strict src`, `pytest` (2216 passed, 7 skipped) |
 | 16 | Independent reviewer | PASS | four reviews; every finding fixed and re-reviewed; review 4 PASS at ad0c1f5 (items 1 to 19) |
 | 17 | PR, trace guard | ready | PR #3 from `release/1.0.0`, trace guard CLEAN; merge and PyPI publish left to the maintainer |
-| 18 | Mutation round | PASS | author: 55 mutations, all killed (4 after new contracts); blind lens e rounds: 89, 85, 98 and 86 mutations, final round all killed or equivalent; reviewers: about 230 more, every survivor closed by a contract |
+| 18 | Mutation round | PASS | author: 55 mutations, all killed (4 after new contracts); blind lens e rounds: 89, 85, 98 and 86 mutations, final round all killed or equivalent; reviewers: about 200 more, every survivor closed by a contract |
 | 19 | Five QA lenses | PASS | a, b and d PASS (round 2), e PASS (round 5), c PASS (round 10) |
 
 ## Baseline on 0.3.0 (before any change)
