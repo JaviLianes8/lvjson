@@ -88,7 +88,7 @@ def dumps(
     styles preserve every double exactly. A float dict key follows the same style; a
     non-finite float key is written as a string under ``'extend'`` and refused otherwise.
 
-    Output is compact unless ``indent`` (a non-negative ``int``) is given. Values that are not
+    Output is compact unless ``indent`` (an ``int`` from 0 to 1024) is given. Values that are not
     JSON types raise :class:`TypeError`; circular values raise :class:`LVJSONError`.
 
     >>> dumps({"x": [0.1, float("nan"), float("inf")]})

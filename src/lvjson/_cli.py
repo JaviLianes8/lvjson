@@ -64,7 +64,9 @@ def _add_io(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "-o", "--output", metavar="FILE", help="write here (UTF-8, no trailing newline)"
     )
-    parser.add_argument("--indent", type=_indent, metavar="N", help="pretty-print with N spaces")
+    parser.add_argument(
+        "--indent", type=_indent, metavar="N", help="pretty-print with N spaces, 0 to 1024"
+    )
     parser.add_argument("--sort-keys", action="store_true", help="sort object keys")
 
 
