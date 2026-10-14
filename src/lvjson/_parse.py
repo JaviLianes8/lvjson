@@ -9,7 +9,7 @@ from typing import Any
 
 from ._errors import LVJSONError
 from ._policy import NanInf, check
-from ._text import decode_text, shorten
+from ._text import decode_text, error_text
 from ._tokens import expand_inf
 
 
@@ -80,7 +80,7 @@ def loads(text: str | bytes | bytearray, *, nan_inf: NanInf = "extend") -> Any:
     except LVJSONError:
         raise
     except ValueError as exc:
-        raise LVJSONError(shorten(str(exc))) from None
+        raise LVJSONError(error_text(exc)) from None
     except RecursionError:
         raise LVJSONError("JSON nesting is too deep to parse") from None
 

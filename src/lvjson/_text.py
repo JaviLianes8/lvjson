@@ -28,6 +28,35 @@ def shorten(message: str) -> str:
     return message
 
 
+# Messages of the json module and of comparisons that quote type names, which may hold spaces.
+_NAMED = (
+    re.compile(r"(Object of type )(.+)( is not JSON serializable)", re.DOTALL),
+    re.compile(r"(keys must be str, int, float, bool or None, not )(.+)()", re.DOTALL),
+    re.compile(r"('\W+' not supported between instances of ')(.+?)(' and ')(.+)(')", re.DOTALL),
+)
+
+
+def error_text(error: BaseException) -> str:
+    """Return the message of ``error`` cut short, without calling an overridden ``__str__``.
+
+    Type names that the message quotes are cut to 40 characters like any other word.
+    """
+    try:
+        text = str.__str__(str(BaseException.__str__(error)))
+    except Exception:
+        return type_name(error)
+    for pattern in _NAMED:
+        match = pattern.fullmatch(text)
+        if match:
+            parts = list(match.groups())
+            for index in range(1, len(parts), 2):
+                if len(parts[index]) > _LIMIT:
+                    parts[index] = parts[index][:_LIMIT] + "..."
+            text = "".join(parts)
+            break
+    return shorten(text)
+
+
 def type_name(obj: object) -> str:
     """Return the name of ``obj``'s type, cut to a short length.
 

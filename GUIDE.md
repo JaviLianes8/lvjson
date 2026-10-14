@@ -174,13 +174,17 @@ was not checked against SGL or EXT values.
 | a non-finite value under `nan_inf="reject"`, or a non-finite float key under `"null"` or `"reject"` | `LVJSONError` |
 | a circular value, a value nested too deeply to encode, an integer too long to write | `LVJSONError` |
 | an object of a non-JSON type, a dict key of an unsupported type, `sort_keys` with keys that do not compare | `TypeError` |
-| an exception raised by the value's own methods while encoding (a failing `__iter__`, `items()` or `__repr__`); the original is chained | `TypeError` |
+| an exception raised by the value's own methods while encoding (a failing `__iter__`, `items()` or `__repr__`): a `ValueError` (an `LVJSONError` included) | `LVJSONError` |
+| the same, a `TypeError` | `TypeError` |
+| the same, any other exception; the original is chained | `TypeError` |
 | an unknown option value | `ValueError` |
 | `indent` that is not `None` or an `int` (a `bool` included); an `indent` below 0 or above 1024 | `TypeError`; `ValueError` |
 
 `LVJSONError` subclasses `ValueError`, so code that catches `json`'s `ValueError` keeps
 working. Messages quote at most 40 characters of a value, a type name or any other single word
-(longer ones are cut and end in `...`) and stay under 200 characters in total, whatever the input.
+(longer ones are cut and end in `...`; a quoted type name counts as one word even if it holds
+spaces) and stay under 200 characters in total, whatever the input. An exception's own `__str__`
+is never called.
 
 ## Command line
 

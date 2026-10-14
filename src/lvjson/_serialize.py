@@ -10,7 +10,7 @@ from ._errors import LVJSONError
 from ._labview_format import NONFINITE_KEY, encode_labview
 from ._parse import has_nonfinite, loads
 from ._policy import InfSpelling, NanInf, NumberStyle, check, check_indent, check_output
-from ._text import shorten, type_name
+from ._text import error_text, type_name
 from ._tokens import shorten_infinity
 from ._walk import nonfinite_key, to_null
 
@@ -54,12 +54,11 @@ def _encode(
             sort_keys=sort_keys,
             ensure_ascii=False,
         )
-    except LVJSONError:
-        raise
     except ValueError as exc:
-        raise LVJSONError(shorten(str(exc))) from None
+        # json's own errors, this module's LVJSONError, or a ValueError from the value's own code.
+        raise LVJSONError(error_text(exc)) from None
     except TypeError as exc:
-        raise TypeError(shorten(str(exc))) from None
+        raise TypeError(error_text(exc)) from None
     except RecursionError:
         raise LVJSONError("value is circular or nested too deeply to encode") from None
     except MemoryError:
