@@ -225,7 +225,7 @@ does with `ensure_ascii`; the labview encoder checks the non-finite policy again
   *enable LabVIEW extensions* set to false; SGL and EXT values; other LabVIEW versions. NI's page
   says Unflatten From JSON refuses `null` unless *default null elements* is set, so text written
   with `nan_inf="null"` is refused by a node left at its defaults; that was not exercised.
-- The LabVIEW captures (11 files, about 5 KB) ship in the sdist as test fixtures with their
+- The LabVIEW captures (11 files and their manifest, about 11 KB) ship in the sdist as test fixtures with their
   provenance manifest; they are the author's own program output from a shipped example VI. The
   fetched NI pages and RFC 8259 stay local and git-ignored; only their manifest is tracked.
 - GUIDE.md and this report are longer than 200 lines; the 200-line rule is applied to source and
