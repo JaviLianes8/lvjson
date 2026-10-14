@@ -1,0 +1,33 @@
+{
+  "input_bits": [
+    "3ee4f8b588e368f1",
+    "3f1a36e2eb1c432d",
+    "3f202e4b6ce5dc68",
+    "01a56e1fc2f8f359",
+    "43e158e460913d00",
+    "4415af1d78b58c40",
+    "444b1ae4d6e2ef50",
+    "4340000000000000",
+    "441ac53a7e04bcda",
+    "3ff8000000000000",
+    "bddb7cdfd9d7bdbb",
+    "40f0000000000000"
+  ],
+  "unflattened_first_data_row": [
+    "3ee4f8b588e368f1",
+    "3f1a36e2eb1c432d",
+    "3f202e4b6ce5dc68",
+    "01a56e1fc2f8f359"
+  ],
+  "unflattened_cell": "4340000000000000",
+  "remaining_unflattened_data": [
+    "43e158e460913d00",
+    "4415af1d78b58c40",
+    "444b1ae4d6e2ef50",
+    "4340000000000000",
+    "441ac53a7e04bcda",
+    "3ff8000000000000",
+    "bddb7cdfd9d7bdbb",
+    "40f0000000000000"
+  ]
+}

@@ -4,18 +4,37 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lvjson"
-version = "0.3.0"
-description = "Read and write LabVIEW Flatten To JSON text: verified NaN/Infinity tokens, exact number formatting, strict portable mode"
+version = "1.0.0"
+description = "Read and write LabVIEW Flatten To JSON text: NaN and Infinity tokens, LabVIEW's exact 20-digit numbers, strict portable JSON"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Javier Lianes", email = "javier@lianes8studio.com" }]
-keywords = ["labview", "json", "nan", "infinity", "flatten-to-json", "ni"]
+keywords = [
+    "labview",
+    "json",
+    "nan",
+    "infinity",
+    "flatten-to-json",
+    "unflatten-from-json",
+    "national-instruments",
+    "rfc8259",
+]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
 dependencies = []
@@ -27,8 +46,9 @@ dev = ["ruff", "mypy", "pytest", "build", "twine", "hatchling", "editables"]
 lvjson = "lvjson._cli:main"
 
 [project.urls]
-Homepage = "https://lianes8studio.com"
-Repository = "https://github.com/JaviLianes8/lvjson"
+Homepage = "https://github.com/JaviLianes8/lvjson"
+Source = "https://github.com/JaviLianes8/lvjson"
+Documentation = "https://github.com/JaviLianes8/lvjson/blob/main/GUIDE.md"
 Issues = "https://github.com/JaviLianes8/lvjson/issues"
 Changelog = "https://github.com/JaviLianes8/lvjson/blob/main/CHANGELOG.md"
 LinkedIn = "https://www.linkedin.com/in/jlianes/"
@@ -36,6 +56,24 @@ Funding = "https://buymeacoffee.com/jlianesglrs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/lvjson"]
+
+[tool.hatch.build.targets.sdist]
+only-include = [
+    "src/lvjson",
+    "tests",
+    "README.md",
+    "GUIDE.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "pyproject.toml",
+]
+# The fetched NI pages and RFC text are test-side copies only; they are not distributed.
+exclude = [
+    "**/__pycache__",
+    "**/*.pyc",
+    "tests/fixtures/sources/*.txt",
+    "tests/fixtures/sources/ni-*.json",
+]
 
 [tool.ruff]
 line-length = 100

@@ -12,6 +12,8 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator
 
+from ._text import decode_text
+
 # A string literal is matched first so that its contents are skipped as a whole. An unclosed
 # string runs to the end of the text, so the scan stays linear on truncated input instead of
 # retrying at every later quote. Otherwise a bare non-finite word, bounded so that "Infinity"
@@ -33,16 +35,20 @@ def iter_tokens(text: str) -> Iterator[re.Match[str]]:
             yield match
 
 
-def count_nonfinite(text: str) -> dict[str, int]:
+def count_nonfinite(text: str | bytes | bytearray) -> dict[str, int]:
     """Count each non-finite spelling that appears as a bare token, outside string literals.
 
     The result maps a spelling (``'NaN'``, ``'Infinity'``, ``'-Infinity'``, ``'Inf'``,
-    ``'-Inf'``) to how often it occurs; spellings that do not occur are left out, so an empty
-    dict means the text holds no non-finite token at all. The text is not parsed, so this works
-    on documents that are otherwise malformed too.
+    ``'-Inf'``) to how often it occurs, in that order; spellings that do not occur are left
+    out, so an empty dict means the text holds no non-finite token at all. The text is not
+    parsed, so this works on documents that are otherwise malformed too. ``bytes`` and
+    ``bytearray`` are decoded as UTF-8, as in :func:`loads`.
+
+    >>> count_nonfinite('{"a": [NaN, Infinity, -Inf], "note": "NaN"}')
+    {'NaN': 1, 'Infinity': 1, '-Inf': 1}
     """
     seen: dict[str, int] = {}
-    for match in iter_tokens(text):
+    for match in iter_tokens(decode_text(text)):
         token = match.group("token")
         seen[token] = seen.get(token, 0) + 1
     return {spelling: seen[spelling] for spelling in SPELLINGS if spelling in seen}

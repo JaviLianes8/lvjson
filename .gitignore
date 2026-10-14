@@ -10,3 +10,5 @@ dist/
 .ruff_cache/
 .coverage
 htmlcov/
+tests/fixtures/sources/*
+!tests/fixtures/sources/MANIFEST.json

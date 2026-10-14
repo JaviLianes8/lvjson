@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, cast
+
+from ._text import describe, type_name
 
 # How non-finite floats (NaN, +inf, -inf) are treated:
 # "extend": keep them as the bare extension tokens. LabVIEW 2026's Flatten To JSON writes
@@ -31,19 +33,45 @@ _CHOICES: dict[str, frozenset[str]] = {
 }
 
 
-def _validate(name: str, value: object) -> None:
+def _validate(name: str, value: object) -> str:
+    # Compare the plain text of a str (or str subclass such as a StrEnum member) only, so an
+    # object with a permissive __eq__ cannot slip through; callers use the returned plain str.
     allowed = _CHOICES[name]
-    if value not in allowed:
-        listed = ", ".join(sorted(allowed))
-        raise ValueError(f"{name} must be one of {listed}, got {value!r}")
+    plain = str.__str__(value) if isinstance(value, str) else ""
+    if plain not in allowed:
+        listed = ", ".join(repr(choice) for choice in sorted(allowed))
+        raise ValueError(f"{name} must be one of {listed}, got {describe(value)}")
+    return plain
 
 
-def check(policy: NanInf) -> None:
-    """Validate a ``nan_inf`` policy, so a typo fails loudly instead of being ignored."""
-    _validate("nan_inf", policy)
+def check(policy: NanInf) -> NanInf:
+    """Validate a ``nan_inf`` policy and return it as a plain ``str``."""
+    return cast(NanInf, _validate("nan_inf", policy))
 
 
-def check_output(infinity: InfSpelling, number_style: NumberStyle) -> None:
-    """Validate the output spelling options."""
-    _validate("infinity", infinity)
-    _validate("number_style", number_style)
+def check_output(
+    infinity: InfSpelling, number_style: NumberStyle
+) -> tuple[InfSpelling, NumberStyle]:
+    """Validate the output spelling options and return them as plain ``str`` values."""
+    return (
+        cast(InfSpelling, _validate("infinity", infinity)),
+        cast(NumberStyle, _validate("number_style", number_style)),
+    )
+
+
+# The widest indent accepted; wider ones would only make huge output (or fail to allocate).
+MAX_INDENT = 1024
+
+
+def check_indent(indent: int | None) -> int | None:
+    """Validate ``indent`` (``None`` or an ``int`` from 0 to 1024) and return it as a plain int."""
+    if indent is None:
+        return None
+    if not isinstance(indent, int) or isinstance(indent, bool):
+        raise TypeError(f"indent must be None or an int, got {type_name(indent)}")
+    plain = int.__int__(indent)
+    if plain < 0:
+        raise ValueError("indent must not be negative")
+    if plain > MAX_INDENT:
+        raise ValueError(f"indent must be at most {MAX_INDENT}")
+    return plain

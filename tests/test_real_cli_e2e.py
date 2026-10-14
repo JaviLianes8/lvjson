@@ -1,10 +1,12 @@
-"""Real end-to-end: install the package editable and drive the genuine ``lvjson`` script.
+"""Real end-to-end: drive the genuine ``lvjson`` console script by subprocess.
 
 No imports of the package's CLI, no mocks: every test shells out to the console script that
-pip generated, feeding it the bytes captured from LabVIEW 2026. The project is installed into
-a throwaway virtual environment, so the developer's own environment is never modified. The
-build backend (hatchling, editables) is borrowed from the running interpreter for the install
-only, so no network is needed; the test is skipped with a reason when it is not available.
+pip generated, feeding it the bytes captured from LabVIEW 2026. From a checkout, the project is
+installed editable into a throwaway virtual environment, so the developer's own environment is
+never modified; the build backend (hatchling, editables) is borrowed from the running
+interpreter, so no network is needed, and the test is skipped with a reason when it is not
+available. Run from an sdist whose ``src`` was removed, the suite imports the installed wheel and
+drives that wheel's own script instead.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import venv
 from pathlib import Path
 
@@ -39,8 +42,19 @@ def _backend_dirs() -> list[str]:
     return dirs
 
 
+def _installed_script() -> str | None:
+    # Run from an sdist with src removed, lvjson is the installed wheel: drive its own script.
+    if (_ROOT / "src") in Path(lvjson.__file__).resolve().parents:
+        return None
+    scripts = Path(sys.executable).parent
+    return shutil.which("lvjson", path=str(scripts))
+
+
 @pytest.fixture(scope="module")
 def script(tmp_path_factory: pytest.TempPathFactory) -> str:
+    installed = _installed_script()
+    if installed is not None:
+        return installed
     backend = _backend_dirs()
     env_dir = tmp_path_factory.mktemp("venv")
     try:

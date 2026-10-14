@@ -3,27 +3,31 @@
 from __future__ import annotations
 
 import json
-import math
+import re
 from typing import Any
 
 from ._errors import LVJSONError
-from ._labview_format import encode_labview
+from ._labview_format import NONFINITE_KEY, encode_labview
 from ._parse import has_nonfinite, loads
-from ._policy import InfSpelling, NanInf, NumberStyle, check, check_output
+from ._policy import InfSpelling, NanInf, NumberStyle, check, check_indent, check_output
+from ._text import error_text, type_name
 from ._tokens import shorten_infinity
+from ._walk import nonfinite_key, to_null
 
 # Compact separators match LabVIEW's own flattened output and keep the payload small.
 _COMPACT = (",", ":")
+# A lone surrogate cannot be encoded as UTF-8, so it is written as its escape, as json does
+# with ensure_ascii; everything else stays as text.
+_SURROGATE = re.compile("[" + chr(0xD800) + "-" + chr(0xDFFF) + "]")
 
 
-def _to_null(obj: Any) -> Any:
-    if isinstance(obj, float) and not math.isfinite(obj):
-        return None
-    if isinstance(obj, dict):
-        return {key: _to_null(value) for key, value in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [_to_null(item) for item in obj]
-    return obj
+def _refuse(obj: object) -> object:
+    # json's own message names the type through its metaclass; name it the same way as elsewhere.
+    raise TypeError(f"Object of type {type_name(obj)} is not JSON serializable")
+
+
+def _escape_surrogates(text: str) -> str:
+    return _SURROGATE.sub(lambda match: f"\\u{ord(match.group(0)):04x}", text)
 
 
 def _encode(
@@ -31,20 +35,22 @@ def _encode(
     nan_inf: NanInf,
     indent: int | None,
     sort_keys: bool,
-    number_style: NumberStyle = "shortest",
-    infinity: InfSpelling = "Infinity",
+    number_style: NumberStyle,
+    infinity: InfSpelling,
 ) -> str:
     """Encode to JSON text, applying the non-finite policy and the output spelling."""
-    check(nan_inf)
     allow_nan = nan_inf == "extend"
     try:
         if nan_inf == "reject" and has_nonfinite(obj):
             raise LVJSONError("non-finite float is not allowed under nan_inf='reject'")
-        payload = _to_null(obj) if nan_inf == "null" else obj
+        if not allow_nan and nonfinite_key(obj):
+            raise LVJSONError(NONFINITE_KEY)
+        payload = to_null(obj) if nan_inf == "null" else obj
         if number_style == "labview":
-            return encode_labview(
+            text = encode_labview(
                 payload, infinity=infinity, allow_nan=allow_nan, indent=indent, sort_keys=sort_keys
             )
+            return _escape_surrogates(text)
         text = json.dumps(
             payload,
             allow_nan=allow_nan,
@@ -52,13 +58,24 @@ def _encode(
             separators=None if indent is not None else _COMPACT,
             sort_keys=sort_keys,
             ensure_ascii=False,
+            default=_refuse,
         )
-    except LVJSONError:
-        raise
     except ValueError as exc:
-        raise LVJSONError(str(exc)) from exc
-    except RecursionError as exc:
-        raise LVJSONError("value is circular or nested too deeply to encode") from exc
+        # json's own errors, this module's LVJSONError, or a ValueError from the value's own code.
+        raise LVJSONError(error_text(exc)) from None
+    except TypeError as exc:
+        raise TypeError(error_text(exc)) from None
+    except RecursionError:
+        raise LVJSONError("value is circular or nested too deeply to encode") from None
+    except MemoryError:
+        raise
+    except Exception as exc:
+        # Raised by the value's own methods (a __repr__ the json module calls for a message, an
+        # __iter__ or items() that fails): reported as a TypeError, the original chained.
+        raise TypeError(
+            f"value could not be encoded: its own code raised {type_name(exc)}"
+        ) from exc
+    text = _escape_surrogates(text)
     return shorten_infinity(text) if infinity == "Inf" else text
 
 
@@ -81,14 +98,27 @@ def dumps(
     ``number_style`` picks how finite floats are written. ``'shortest'`` (the default) uses the
     shortest text that round-trips the double. ``'labview'`` uses LabVIEW's own 20-significant-
     digit form, so a value read from Flatten To JSON output is re-emitted byte for byte. Both
-    styles preserve every double exactly. A float dict key follows the same style.
+    styles preserve every double exactly. A float dict key follows the same style; a
+    non-finite float key is written as a string under ``'extend'`` and refused otherwise.
+
+    Output is compact unless ``indent`` (an ``int`` from 0 to 1024) is given. Values that are not
+    JSON types raise :class:`TypeError`; circular values raise :class:`LVJSONError`.
+
+    >>> dumps({"x": [0.1, float("nan"), float("inf")]})
+    '{"x":[0.1,NaN,Infinity]}'
+    >>> dumps([0.1, 1.0, -0.0], number_style="labview")
+    '[0.10000000000000000555,1,-0]'
+    >>> dumps([float("-inf")], infinity="Inf"), dumps([float("nan")], nan_inf="null")
+    ('[-Inf]', '[null]')
     """
-    check_output(infinity, number_style)
+    nan_inf = check(nan_inf)
+    infinity, number_style = check_output(infinity, number_style)
+    indent = check_indent(indent)
     return _encode(obj, nan_inf, indent, sort_keys, number_style, infinity)
 
 
 def to_portable(
-    text: str | bytes,
+    text: str | bytes | bytearray,
     *,
     nan_inf: NanInf = "null",
     indent: int | None = None,
@@ -96,16 +126,21 @@ def to_portable(
 ) -> str:
     """Convert LabVIEW JSON text to standard JSON that ordinary parsers accept.
 
-    Non-finite floats follow ``nan_inf``: the default ``'null'`` yields strict RFC 8259 JSON,
+    Non-finite values follow ``nan_inf``: the default ``'null'`` yields strict RFC 8259 JSON,
     ``'extend'`` keeps them as the ``json`` module's ``NaN`` / ``Infinity`` / ``-Infinity``
-    tokens, and ``'reject'`` raises :class:`LVJSONError`. Either input spelling is accepted.
+    tokens, and ``'reject'`` raises :class:`LVJSONError`. Either input spelling is accepted,
+    and numbers are written in the shortest form that keeps every double exact.
+
+    >>> to_portable('{"gain":2.5,"reading":NaN,"limit":-Inf,"x":0.10000000000000000555}')
+    '{"gain":2.5,"reading":null,"limit":null,"x":0.1}'
     """
-    check(nan_inf)
-    return _encode(loads(text, nan_inf="extend"), nan_inf, indent, sort_keys)
+    nan_inf = check(nan_inf)
+    indent = check_indent(indent)
+    return _encode(loads(text), nan_inf, indent, sort_keys, "shortest", "Infinity")
 
 
 def to_labview(
-    text: str | bytes,
+    text: str | bytes | bytearray,
     *,
     nan_inf: NanInf = "extend",
     indent: int | None = None,
@@ -117,21 +152,18 @@ def to_labview(
 
     This is the reverse of :func:`to_portable`. Non-finite floats follow ``nan_inf`` and are
     spelled per ``infinity``; finite floats follow ``number_style`` (see :func:`dumps`).
+
+    >>> to_labview('{"x": 0.1, "limit": -Infinity}', number_style="labview")
+    '{"x":0.10000000000000000555,"limit":-Infinity}'
     """
-    check(nan_inf)
-    check_output(infinity, number_style)
-    return dumps(
-        loads(text, nan_inf="extend"),
-        nan_inf=nan_inf,
-        indent=indent,
-        sort_keys=sort_keys,
-        infinity=infinity,
-        number_style=number_style,
-    )
+    nan_inf = check(nan_inf)
+    infinity, number_style = check_output(infinity, number_style)
+    indent = check_indent(indent)
+    return _encode(loads(text), nan_inf, indent, sort_keys, number_style, infinity)
 
 
 def round_trip(
-    text: str | bytes,
+    text: str | bytes | bytearray,
     *,
     nan_inf: NanInf = "extend",
     indent: int | None = None,
@@ -144,7 +176,11 @@ def round_trip(
     Finite numbers are preserved exactly: they decode to IEEE 754 doubles and re-encode in the
     chosen ``number_style``. With the default ``'shortest'`` this turns LabVIEW's 20-digit
     ``0.10000000000000000555`` into ``0.1`` without changing the value. Non-finite floats
-    follow ``nan_inf`` and ``infinity``.
+    follow ``nan_inf`` and ``infinity``. It is the same operation as :func:`to_labview`, named
+    for the canonicalising use.
+
+    >>> round_trip('{"v": 3.141592653589793116, "w": Inf}')
+    '{"v":3.141592653589793,"w":Infinity}'
     """
     return to_labview(
         text,

@@ -115,12 +115,12 @@ def test_check_flags_numbers_that_overflow_to_infinity(
     assert "NaN x1, numbers that overflow a double x2" in out
 
 
-def test_unencodable_output_is_a_clean_error(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+def test_a_lone_surrogate_is_written_back_as_its_escape(
+    monkeypatch: pytest.MonkeyPatch, capsysbinary: pytest.CaptureFixture[bytes]
 ) -> None:
     _stdin(monkeypatch, b'["\\ud800"]')
-    assert main(["to-portable"]) == 1
-    assert "lvjson:" in capsys.readouterr().err
+    assert main(["to-portable"]) == 0
+    assert capsysbinary.readouterr().out == b'["' + bytes([92]) + b'ud800"]' + bytes([10])
 
 
 def test_check_passes_strict_json_under_strict(
