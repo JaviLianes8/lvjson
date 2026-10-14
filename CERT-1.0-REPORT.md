@@ -10,9 +10,9 @@ Progress:
 - [x] Contract, oracle, fuzz and author mutation round (items 6, 9, 18)
 - [x] Docs: README, GUIDE, CHANGELOG (items 11, 12)
 - [x] Packaging, e2e and upgrade from PyPI 0.3.0 (items 8, 10, 13, 14)
-- [ ] Independent reviewer and five QA lenses report PASS (items 16, 19): lenses PASS, review 4 pending
+- [x] Independent reviewer and five QA lenses report PASS (items 16, 19)
 - [x] Gates (item 15)
-- [ ] PR and trace guard CLEAN (item 17); merge and publish left to the maintainer
+- [x] PR #3 and trace guard CLEAN (item 17); merge and publish left to the maintainer
 
 ## Scorecard (final, at the head of PR #3)
 
@@ -33,9 +33,9 @@ Progress:
 | 13 | pyproject | PASS | 1.0.0, Production/Stable, 3.10 to 3.14, MIT, Homepage/Source/Issues/Changelog, keywords, `dependencies = []` (contract-tested) |
 | 14 | sdist and wheel contents | PASS | wheel: twelve modules, `py.typed`, LICENSE; sdist: src, tests, captures with manifest, sources manifest only, docs |
 | 15 | Gates exit 0 alone | PASS | `ruff format --check .`, `ruff check .`, `mypy --strict src`, `pytest` (2216 passed, 7 skipped) |
-| 16 | Independent reviewer | PENDING | review 4 at 97c4d29 |
+| 16 | Independent reviewer | PASS | four reviews; every finding fixed and re-reviewed; review 4 PASS at ad0c1f5 (items 1 to 19) |
 | 17 | PR, trace guard | ready | PR #3 from `release/1.0.0`, trace guard CLEAN; merge and PyPI publish left to the maintainer |
-| 18 | Mutation round | PASS | author: 55 mutations, all killed (4 after new contracts); blind lens e rounds: 89, 85, 98 and 86 mutations, final round all killed or equivalent; reviewers: about 150 more, every survivor closed by a contract |
+| 18 | Mutation round | PASS | author: 55 mutations, all killed (4 after new contracts); blind lens e rounds: 89, 85, 98 and 86 mutations, final round all killed or equivalent; reviewers: about 230 more, every survivor closed by a contract |
 | 19 | Five QA lenses | PASS | a, b and d PASS (round 2), e PASS (round 5), c PASS (round 10) |
 
 ## Baseline on 0.3.0 (before any change)
@@ -230,6 +230,8 @@ does with `ensure_ascii`; the labview encoder checks the non-finite policy again
 | --- | --- | --- | --- |
 | 1 | 7857de8 | FAIL | items 1 to 5, 7 to 15 PASS, 17 ready; 22 table mutations re-applied (20 killed by the named test, C09 by another, X01 survived at that head), 27 of its own (17 killed, 2 equivalent, 8 survived). Survivors: nested non-finite keys, `--indent 0`, the 200 and 40 character edges and a 203-character error line (all already covered by contracts added after that head), labview-style `int` keys written through `repr`, more than one leading byte order mark accepted. Also: `tests/test_robustness.py` over 200 lines, stale names and counts in this report, process wording. Fixed: `int` key and byte order mark contracts, the test file split (and every test file now held to 200 lines by `test_contract`), the report corrected |
 | 2 | 178b15d | PASS | items 1 to 15 and 18 PASS, 17 ready, 19 pending; the seven earlier findings re-checked and each mutation killed by a named test; 45 mutations at that head: 44 killed, 1 equivalent (`ljust` on a coefficient that always has 20 digits); every file in `src` and `tests` at most 200 lines; the tracked tree and history clean. Info: `annotations` from `__future__` shows in `dir(lvjson)`, outside `__all__` |
+| 3 | 2f6c08b | FAIL | items 1 to 5, 7 to 15 PASS, 17 ready, 19 PASS per the lens table; gates alone, sdist suite against the installed wheel (2211 passed, 7 skipped), 13 table mutations re-applied and killed, 32 of its own: 26 killed, 2 equivalent, 4 survived (a `str` subclass in labview style written through `str()`, `--indent 1024` refused, the quoted-name cut one character late, a stderr without an encoding treated as ASCII); one sentence in this report described the review process. Fixed: contracts in `tests/test_contract_final.py`, each of the four re-applied and killed; the sentence removed |
+| 4 | ad0c1f5 | PASS | the four review 3 survivors killed by named tests in `tests/test_contract_final.py`; items 1 to 19 PASS (17 ready, trace guard CLEAN); gates alone; 62 mutations (18 from the table above, 40 of its own over all modules): 61 killed, 1 equivalent (re-encoding `check`'s file name after every unprintable character, lone surrogates included, is already escaped); README, GUIDE and CHANGELOG claims run; the new contract file passes on all six interpreters |
 
 ## Decisions for the maintainer
 
@@ -261,4 +263,3 @@ does with `ensure_ascii`; the labview encoder checks the non-finite policy again
   test files, and `test_contract` enforces it for both.
 - The README links to GUIDE.md and CHANGELOG.md on `main`, so publish after the merge. Branch
   history holds intermediate report wording; a squash merge keeps `main` to the final state.
-| 3 | 2f6c08b | FAIL | items 1 to 5, 7 to 15 PASS, 17 ready, 19 PASS per the lens table; gates alone, sdist suite against the installed wheel (2211 passed, 7 skipped), 13 table mutations re-applied and killed, 32 of its own: 26 killed, 2 equivalent, 4 survived (a `str` subclass in labview style written through `str()`, `--indent 1024` refused, the quoted-name cut one character late, a stderr without an encoding treated as ASCII); one sentence in this report described the review process. Fixed: contracts in `tests/test_contract_final.py`, each of the four re-applied and killed; the sentence removed |
