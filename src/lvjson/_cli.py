@@ -148,6 +148,8 @@ def _check(args: argparse.Namespace) -> int:
     if overflow:
         found.append(f"numbers that overflow a double x{overflow}")
     name = args.file if args.file not in (None, "-") else "<stdin>"
+    # A file name need not be valid UTF-8 (lone surrogates); show such characters as escapes.
+    name = name.encode("utf-8", "backslashreplace").decode("utf-8")
     if not found:
         emit(f"{name}: valid, no non-finite tokens (strict JSON)")
         return 0

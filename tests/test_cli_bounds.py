@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+from pathlib import Path
 
 import pytest
 
@@ -85,3 +86,16 @@ def test_usage_errors_are_measured_as_a_narrow_stderr_writes_them(
     raw = stream.buffer
     assert isinstance(raw, io.BytesIO)
     assert all(len(line) <= 200 for line in raw.getvalue().decode("cp1252").splitlines())
+
+
+def test_check_names_a_file_whose_name_is_not_utf8(
+    tmp_path: Path, capsysbinary: pytest.CaptureFixture[bytes]
+) -> None:
+    path = tmp_path / ("s" + chr(0xDC80) + ".json")
+    try:
+        path.write_text("[NaN]", encoding="utf-8")
+    except (OSError, UnicodeError):
+        pytest.skip("this file system cannot hold such a name")
+    assert main(["check", str(path)]) == 0
+    out = capsysbinary.readouterr().out
+    assert out.endswith(b"s" + bytes([92]) + b"udc80.json: valid, non-finite values: NaN x1\n")
