@@ -144,20 +144,20 @@ double); D01 first failed at import and was re-run as a valid mutation.
 | C09 | stdin named - | `_cli.py` | killed | `tests/test_cli.py::test_check_passes_strict_json_under_strict` |
 | C10 | stdout without newline | `_cli_io.py` | killed | `tests/test_cli.py::test_stdin_is_decoded_as_utf8_whatever_the_console_encoding` |
 
-## Packaging and end-to-end (items 8, 10, 14), author run at abd6293
+## Packaging and end-to-end (items 8, 10, 14), author run at 86208e7
 
 - `python -m build`, `twine check --strict`: both PASSED.
-- Wheel: the eleven modules, `py.typed`, LICENSE and metadata. Sdist: `src`, `tests` with the
+- Wheel: the twelve modules, `py.typed`, LICENSE and metadata. Sdist: `src`, `tests` with the
   LabVIEW captures and the sources manifest, README, GUIDE, CHANGELOG, LICENSE, pyproject and
   the `.gitignore` hatchling adds; no fetched NI or RFC copies, no scripts, no report.
-- The wheel in a fresh venv on 3.10.19, 3.11.5, 3.12.12, 3.13.2, 3.14.2 and 3.14.2t (every
-  supported interpreter available), with the suite run from the extracted sdist with `src` removed (it
-  imports the installed wheel and drives its console script): 2087 passed, 5 skipped (the
-  sources module) on each.
+- The wheel in a fresh venv on 3.10.19, 3.11.5, 3.12.12, 3.13.2, 3.14.2 and 3.14.2t, with the
+  suite run from the extracted sdist with `src` removed (it imports the installed wheel and
+  drives its console script): 2200 passed, 5 skipped (the sources module) on each.
 - A strict consumer (`mypy --strict`) type-checks against the installed wheel on 3.10 and 3.14.
 - PyPI 0.3.0 installed, then upgraded in place: tie output, overflow under `null` and `reject`,
   `count_nonfinite(bytes)`, `indent` checks and `has_nonfinite` on a cycle change as CHANGELOG
   1.0.0 says; capture parsing and `to_portable` output are unchanged.
+- An earlier run at abd6293 gave the same results with 2087 tests.
 
 ## Independent QA lenses (item 19), first round at 7e0eee4
 
