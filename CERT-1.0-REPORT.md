@@ -10,9 +10,33 @@ Progress:
 - [x] Contract, oracle, fuzz and author mutation round (items 6, 9, 18)
 - [x] Docs: README, GUIDE, CHANGELOG (items 11, 12)
 - [x] Packaging, e2e and upgrade from PyPI 0.3.0 (items 8, 10, 13, 14)
-- [ ] Independent reviewer and five QA lenses report PASS (items 16, 19)
+- [ ] Independent reviewer and five QA lenses report PASS (items 16, 19): lenses PASS, review 4 pending
 - [x] Gates (item 15)
 - [ ] PR and trace guard CLEAN (item 17); merge and publish left to the maintainer
+
+## Scorecard (final, at the head of PR #3)
+
+| # | Item | Verdict | Evidence |
+| --- | --- | --- | --- |
+| 1 | API reviewed for stability | PASS | Same eleven names as 0.3.0; ties, overflow under `null`/`reject`, `indent` range, option and error handling settled; every change in CHANGELOG 1.0.0 and the guide's upgrade section |
+| 2 | `__all__` exact | PASS | `test_contract::test_all_lists_exactly_the_public_api`; `test_docs` checks examples use public names only |
+| 3 | Docstrings with runnable examples, doctests pass | PASS | every public function and `LVJSONError` has `>>>`, the option aliases in the package docstring; module doctests, README and GUIDE `pycon` blocks and `$ lvjson` transcripts run in `test_docs` |
+| 4 | Typed end to end | PASS | `mypy --strict src tests` clean; `py.typed` shipped; strict external consumer on 3.10 and 3.14; `loads` returns `Any`, documented |
+| 5 | Typed, documented, safe errors | PASS | the guide's error table; messages at most 40 characters of any value, type name, word or quoted name and under 200 in total; overridden `__str__` never called; command line lines at most 200 as written |
+| 6 | Contract asserts the full promise | PASS | 2216 tests: promise per public name, LabVIEW captures, oracles, sources, fuzz, edge contracts from every mutation round |
+| 7 | Real ground truth | PASS | eleven LabVIEW 2026 files: Flatten To JSON output and Unflatten From JSON readback (ties away from zero, `-0` read as `+0.0`); NI pages and RFC 8259 fetched 2026-10-13 (manifest tracked); oracles: exact `Fraction` arithmetic, the Windows C runtime `printf`, the `json` module |
+| 8 | Real e2e incl. PyPI upgrade | PASS | wheel in clean venvs, suite from the sdist with `src` removed driving the installed script, a real closed pipe; PyPI 0.3.0 upgraded in place matches CHANGELOG |
+| 9 | Seeded fuzz, no crash, hang or blow-up | PASS | seeded fuzz and timing contracts in the suite; lens c rounds totalling several million fuzz and hostile calls; quadratic paths found (labview indent, message patterns) fixed and pinned by timing contracts |
+| 10 | Every interpreter on this PC | PASS | 3.10.19, 3.11.5, 3.12.12, 3.13.2, 3.14.2, 3.14.2t: 2211 passed, 7 skipped each at 2f6c08b (later commits add tests only) |
+| 11 | README | PASS | `twine check --strict` PASSED; absolute links tested; problem, verified why, install, quick start, GUIDE and CHANGELOG links |
+| 12 | CHANGELOG dated 1.0.0 | PASS | `## [1.0.0] - 2026-10-13` |
+| 13 | pyproject | PASS | 1.0.0, Production/Stable, 3.10 to 3.14, MIT, Homepage/Source/Issues/Changelog, keywords, `dependencies = []` (contract-tested) |
+| 14 | sdist and wheel contents | PASS | wheel: twelve modules, `py.typed`, LICENSE; sdist: src, tests, captures with manifest, sources manifest only, docs |
+| 15 | Gates exit 0 alone | PASS | `ruff format --check .`, `ruff check .`, `mypy --strict src`, `pytest` (2216 passed, 7 skipped) |
+| 16 | Independent reviewer | PENDING | review 4 at 97c4d29 |
+| 17 | PR, trace guard | ready | PR #3 from `release/1.0.0`, trace guard CLEAN; merge and PyPI publish left to the maintainer |
+| 18 | Mutation round | PASS | author: 55 mutations, all killed (4 after new contracts); blind lens e rounds: 89, 85, 98 and 86 mutations, final round all killed or equivalent; reviewers: about 150 more, every survivor closed by a contract |
+| 19 | Five QA lenses | PASS | a, b and d PASS (round 2), e PASS (round 5), c PASS (round 10) |
 
 ## Baseline on 0.3.0 (before any change)
 
