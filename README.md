@@ -1,5 +1,7 @@
 # lvjson
 
+[![Lianes8 Certified](https://lianes8studio.com/certified/lianes8-certified-badge.svg)](https://lianes8studio.com/certified)
+
 Read and write LabVIEW **Flatten To JSON** text from Python: the `NaN` and `Infinity` tokens,
 LabVIEW's exact 20-digit numbers, negative zero, and strict portable JSON for everything else.
 
